@@ -1,0 +1,74 @@
+# Import Numpy and Pandas
+import pandas as pd
+from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
+from pandas.tseries.holiday import MO, TU, TH, FR, nearest_workday
+from pandas.tseries.offsets import *
+from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
+
+
+
+def election_observance(dt):
+    if dt.year % 2 == 1:
+        dt = pd.to_datetime('1/1/2000')
+        return dt
+    else:
+        return dt + pd.DateOffset(weekday=TU(1))
+
+class ExampleCalendar(AbstractHolidayCalendar):
+
+    rules = [
+    Holiday('New Years Day', month=1,  day=1,  observance=nearest_workday),
+    USMartinLutherKingJr,
+    USPresidentsDay,
+    USMemorialDay,
+    Holiday('July 4th', month=7,  day=4,  observance=nearest_workday),
+    USLaborDay,
+    USColumbusDay,
+    Holiday('Veterans Day', month=11, day=11, observance=nearest_workday),
+    USThanksgivingDay,
+    Holiday('Christmas', month=12, day=25, observance=nearest_workday),
+    #  GoodFriday, EasterMonday
+    GoodFriday,
+    EasterMonday,
+    Holiday('Day After Thanksgiving Day', month=11, day=1, offset=DateOffset(weekday=FR(4))),
+    Holiday('Veterans Day', month=11, day=11, observance=nearest_workday),
+    Holiday('US Election Day', month=11, day=1, observance=election_observance),
+    Holiday('WV Primary Election Day', month=5, day=1, observance=election_observance),
+    Holiday('WV Day', month=6, day=20),
+    ]
+
+def determine_calendar_dates(start_date, end_date, dt_max):
+    cal = ExampleCalendar()
+    delta = end_date - start_date
+
+    # GTFS feeds can't be > 1 year from start date
+    print('{}  days between start and end date.'.format(delta))
+
+    if delta > pd.Timedelta(days=dt_max):
+        end_date = pd.DateOffset(days=364) + start_date
+        print('   New end date is {}'.format(end_date))
+    calendar = cal.holidays(start_date, end_date, return_name=True)
+    return calendar
+
+def select_agency_calendar_dates(calendar, holiday_list):
+    dates = []
+    for i in range(len(calendar.values)):
+        if calendar.values[i] in holiday_list:
+            # print(calendar.index[i], calendar.values[i])
+            dates.append(calendar.index[i])
+    return dates
+
+start_date = pd.Timestamp('20160108')
+end_date   = pd.Timestamp('20171231')
+dt_max     = 365
+holiday_list = ["New Years Day",'July 4th', 'Christmas','Thanksgiving']
+
+my_calendar = determine_calendar_dates(start_date, end_date, dt_max)
+my_dates = select_agency_calendar_dates(my_calendar, holiday_list)
+print('my dates:{}'.format(my_dates))
+cal_dates = []
+for i in range(len(my_dates)):
+    cal_dates.append(my_dates[i].strftime('%Y%m%d'))
+print(str(cal_dates))
+
+
