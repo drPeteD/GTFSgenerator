@@ -93,13 +93,6 @@ class Configuration(object):
         self._config_parser.set(section5, 'feed_end_date', '20161231')
         self._config_parser.set(section5, 'feed_version', '20150624.1')
 
-        section6 = 'stops'
-        self._config_parser.add_section(section6)
-        self._config_parser.set(section6, 'stops_path_source', '')
-
-        section7 = 'schedules'
-
-
         with open(self._default_config_file, 'w') as configfile:
             self._config_parser.write(configfile)
 
@@ -110,7 +103,6 @@ class Configuration(object):
         if (os.path.isfile(conf_file)):
             self._config_parser.read(conf_file)
             sections = self._config_parser.sections()
-
             for section in sections:
                 for entry in self._config_parser.items(section):
                     defaults[entry[0]] = entry[1]

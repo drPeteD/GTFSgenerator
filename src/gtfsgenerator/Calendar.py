@@ -1,24 +1,42 @@
-# Import Numpy and Pandas
+# Import Pandas
 import pandas as pd
 from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
 from pandas.tseries.holiday import MO, TU, TH, FR, nearest_workday
 from pandas.tseries.offsets import *
 from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
+from termcolor import colored
 
 
-def ServiceExceptions(configs):
-    """
 
-    :param begin_date:
-    :param end_date:
-    :param dt_max:
-    :param holiday_list:
-    :return:
-    """
+class ServiceExceptions(object):
 
-    start_date = pd.Timestamp(configs.feed_start_date)
-    end_date   = pd.Timestamp(configs.feed_end_date)
-    my_calendar = determine_calendar_dates(start_date, end_date, configs.delta_max)
+    def __init__(self, configs):
+
+    self.start_date = configs.feed_start_date
+    self.end_date   = configs.feed_end_date
+    self.delta_max  = configs.delta_max
+    if not self.start_date:
+        print(colored('No start date.', red))
+    if not self.end_date:
+        print(colored('No end date.', red))
+    if not self.delta_max:
+        print(colored('No maximun feed length (days) specified.', 'red'))
+    ServiceExceptions(configs=configs)
+
+
+    def ServiceExceptions(self, configs):
+        """
+
+        :param begin_date:
+        :param end_date:
+        :param dt_max:
+        :param holiday_list:
+        :return:
+        """
+
+    self.start_date = pd.Timestamp(configs.feed_start_date)
+    self.end_date   = pd.Timestamp(configs.feed_end_date)
+    self.my_calendar = determine_calendar_dates(start_date, end_date, configs.delta_max)
     my_dates = select_agency_calendar_dates(my_calendar, configs.holidays)
     print('my dates:{}'.format(my_dates))
     cal_dates = []
@@ -28,13 +46,33 @@ def ServiceExceptions(configs):
     return cal_dates
 
 
+    def _determine_calendar_dates(self, start_date, end_date, delta_max):
+        """
 
-def election_observance(dt):
-    if dt.year % 2 == 1:
-        dt = pd.to_datetime('1/1/2000')
-        return dt
-    else:
-        return dt + pd.DateOffset(weekday=TU(1))
+        :param start_date:
+        :param end_date:
+        :param dt_max:
+        :return:
+        """
+        cal = UsaWvCalendar()
+        delta = end_date - start_date
+
+        # GTFS feeds can't be > 1 year from start date
+        print('{}  days between start and end date.'.format(delta))
+
+        if delta > pd.Timedelta(days=dt_max):
+            end_date = pd.DateOffset(days=364) + start_date
+            print('   New end date is {}'.format(end_date))
+        calendar = cal.holidays(start_date, end_date, return_name=True)
+        return calendar
+
+    def _select_agency_calendar_dates(calendar, holiday_list):
+        dates = []
+        for i in range(len(calendar.values)):
+            if calendar.values[i] in holiday_list:
+                # print(calendar.index[i], calendar.values[i])
+                dates.append(calendar.index[i])
+        return dates
 
 class UsaWvCalendar(AbstractHolidayCalendar):
     """
@@ -60,32 +98,9 @@ class UsaWvCalendar(AbstractHolidayCalendar):
     Holiday('WV Day', month=6, day=20),
     ]
 
-def determine_calendar_dates(start_date, end_date, dt_max):
-    """
-
-    :param start_date:
-    :param end_date:
-    :param dt_max:
-    :return:
-    """
-    cal = UsaWvCalendar()
-    delta = end_date - start_date
-
-    # GTFS feeds can't be > 1 year from start date
-    print('{}  days between start and end date.'.format(delta))
-
-    if delta > pd.Timedelta(days=dt_max):
-        end_date = pd.DateOffset(days=364) + start_date
-        print('   New end date is {}'.format(end_date))
-    calendar = cal.holidays(start_date, end_date, return_name=True)
-    return calendar
-
-def select_agency_calendar_dates(calendar, holiday_list):
-    dates = []
-    for i in range(len(calendar.values)):
-        if calendar.values[i] in holiday_list:
-            # print(calendar.index[i], calendar.values[i])
-            dates.append(calendar.index[i])
-    return dates
-
-ServiceExceptions(configs)
+def election_observance(dt):
+    if dt.year % 2 == 1:
+        dt = pd.to_datetime('1/1/2000')
+        return dt
+    else:
+        return dt + pd.DateOffset(weekday=TU(1))
