@@ -6,6 +6,28 @@ from pandas.tseries.offsets import *
 from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
 
 
+def ServiceExceptions(configs):
+    """
+
+    :param begin_date:
+    :param end_date:
+    :param dt_max:
+    :param holiday_list:
+    :return:
+    """
+
+    start_date = pd.Timestamp(configs.feed_start_date)
+    end_date   = pd.Timestamp(configs.feed_end_date)
+    my_calendar = determine_calendar_dates(start_date, end_date, configs.delta_max)
+    my_dates = select_agency_calendar_dates(my_calendar, configs.holidays)
+    print('my dates:{}'.format(my_dates))
+    cal_dates = []
+    for i in range(len(my_dates)):
+        cal_dates.append(my_dates[i].strftime('%Y%m%d'))
+    print(cal_dates)
+    return cal_dates
+
+
 
 def election_observance(dt):
     if dt.year % 2 == 1:
@@ -14,8 +36,10 @@ def election_observance(dt):
     else:
         return dt + pd.DateOffset(weekday=TU(1))
 
-class ExampleCalendar(AbstractHolidayCalendar):
-
+class UsaWvCalendar(AbstractHolidayCalendar):
+    """
+    All the US and Wv holidays my transit agencies may observe.
+    """
     rules = [
     Holiday('New Years Day', month=1,  day=1,  observance=nearest_workday),
     USMartinLutherKingJr,
@@ -27,7 +51,6 @@ class ExampleCalendar(AbstractHolidayCalendar):
     Holiday('Veterans Day', month=11, day=11, observance=nearest_workday),
     USThanksgivingDay,
     Holiday('Christmas', month=12, day=25, observance=nearest_workday),
-    #  GoodFriday, EasterMonday
     GoodFriday,
     EasterMonday,
     Holiday('Day After Thanksgiving Day', month=11, day=1, offset=DateOffset(weekday=FR(4))),
@@ -38,7 +61,14 @@ class ExampleCalendar(AbstractHolidayCalendar):
     ]
 
 def determine_calendar_dates(start_date, end_date, dt_max):
-    cal = ExampleCalendar()
+    """
+
+    :param start_date:
+    :param end_date:
+    :param dt_max:
+    :return:
+    """
+    cal = UsaWvCalendar()
     delta = end_date - start_date
 
     # GTFS feeds can't be > 1 year from start date
@@ -58,17 +88,4 @@ def select_agency_calendar_dates(calendar, holiday_list):
             dates.append(calendar.index[i])
     return dates
 
-start_date = pd.Timestamp('20160108')
-end_date   = pd.Timestamp('20171231')
-dt_max     = 365
-holiday_list = ["New Years Day",'July 4th', 'Christmas','Thanksgiving']
-
-my_calendar = determine_calendar_dates(start_date, end_date, dt_max)
-my_dates = select_agency_calendar_dates(my_calendar, holiday_list)
-print('my dates:{}'.format(my_dates))
-cal_dates = []
-for i in range(len(my_dates)):
-    cal_dates.append(my_dates[i].strftime('%Y%m%d'))
-print(str(cal_dates))
-
-
+ServiceExceptions(configs)

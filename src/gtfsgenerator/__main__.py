@@ -33,19 +33,20 @@ from os.path import expanduser
 from termcolor import colored
 from veryprettytable import VeryPrettyTable
 from gtfsgenerator.Configuration import Configuration
-# from gtfsgenerator.Holidays import
+from gtfsgenerator.Calendar import ServiceExceptions
 import argparse
-import subprocess
-import glob
-import zipfile
+import csv
 from datetime import datetime
 from geopy.distance import vincenty
-import xml.etree.ElementTree as ET
-import csv
+import glob
 import gspread          # read Google sheets
+import xml.etree.ElementTree as ET
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 from oauth2client import tools
+import subprocess
+import zipfile
+
 
 # TODO Read xls sheets
 # import openpyxl or xlrd    # read xls sheets
@@ -847,53 +848,18 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
     x = GtfsHeader()
     x.write_header('calendar_dates', gtfs_file)
 
-    # Service year from feed dates in config file
-    s_year  = configs.feed_start_date[:4]
-    e_year  = configs.feed_end_date[:4]
-
-    # Make list of years to cover service period. Strip dates before present.
-    years       = []
-    val_dates   = []
-    if s_year   != e_year:
-        years.append(s_year)
-        years.append(e_year)
-    else:
-        years.append(e_year)
-
-    # Holidays are in the configuration file. Make string into list.
-    dates = configs.holidays.split(',')
-    # Determine Holiday days, are exception type 2 (removed service).
-    # Holidays may be specified as 'Thanksgiving(US) Day', 'New Years Day', 'Christmas Day', 'Independence Day'.
     exception_type = '2'
-    x = ServiceExceptions()
+    # TODO complete service exceptions
+    dates = ServiceExceptions(configs)
+    print('Returned formatted dates:{}'.format(dates))
 
-    # Get formatted service exception dates by year.
-    for year in years:
-        ex_dates = x.format_dates(dates, year)
+    # Setup a line entry for each holiday
 
-        print('Returned formatted dates:{}'.format(ex_dates))
-
-        # Setup a line entry for each holiday
-        # Strip out dates that occur before the current date.
-
-        print('  ex_dates:{}'.format(ex_dates))
-
-        for day in ex_dates:
-            dt = datetime.strptime(day, '%Y%m%d')
-            delta = (dt - datetime.now()).days
-
-            # print(delta)
-
-            # Create list of dates after today.
-            if delta > 0:
-                val_dates.append(day)
-
-    # print('   valid dates:{}'.format(val_dates))
-
+    print('  service exception dates:{}'.format(dates))
 
     # Open and append date to existing file
     f = open(gtfs_file, "a+")
-    for ex_day in val_dates:
+    for ex_day in dates:
         calendar_dates_info = '{},{},{}\n'.format(service_id, ex_day, exception_type)
         f.write('{}'.format(calendar_dates_info))
     f.close()
@@ -1584,7 +1550,9 @@ def main (argv=None):
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             # Call the test function
 
-
+            service_id = '?'
+            worksheet_title = 'test_worksheet'
+            write_calendar_dates_file(service_id, worksheet_title, configs)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:
