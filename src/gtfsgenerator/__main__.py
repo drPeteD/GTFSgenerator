@@ -850,7 +850,7 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
 
     exception_type = '2'
     # TODO complete service exceptions
-    dates = Calendar.ServiceExceptions(configs)
+    dates = ServiceExceptions(configs)
     print('Returned formatted dates:{}'.format(dates))
 
     # Setup a line entry for each holiday

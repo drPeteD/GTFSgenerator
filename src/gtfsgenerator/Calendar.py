@@ -15,16 +15,17 @@ class ServiceExceptions(object):
     self.start_date = configs.feed_start_date
     self.end_date   = configs.feed_end_date
     self.delta_max  = configs.delta_max
+    self.holidays   = configs.holidays
     if not self.start_date:
-        print(colored('No start date.', red))
+        print(colored('No start date.', 'red'))
     if not self.end_date:
-        print(colored('No end date.', red))
+        print(colored('No end date.', 'red'))
     if not self.delta_max:
         print(colored('No maximun feed length (days) specified.', 'red'))
-    ServiceExceptions(configs=configs)
+    _getDates(self, self.start_date, self.end_date, self.delta_max, self.holidays)
 
 
-    def ServiceExceptions(self, configs):
+    def _getDates(self, self.start_date, self.end_date, self.delta_max, self.holidays):
         """
 
         :param begin_date:
@@ -34,10 +35,10 @@ class ServiceExceptions(object):
         :return:
         """
 
-    self.start_date = pd.Timestamp(configs.feed_start_date)
-    self.end_date   = pd.Timestamp(configs.feed_end_date)
-    self.my_calendar = determine_calendar_dates(start_date, end_date, configs.delta_max)
-    my_dates = select_agency_calendar_dates(my_calendar, configs.holidays)
+    self.start_date = pd.Timestamp(self.feed_start_date)
+    self.end_date   = pd.Timestamp(self.feed_end_date)
+    self.my_calendar = determine_calendar_dates(self.start_date, self.end_date, self.delta_max)
+    my_dates = select_agency_calendar_dates(self.my_calendar, self.holidays)
     print('my dates:{}'.format(my_dates))
     cal_dates = []
     for i in range(len(my_dates)):

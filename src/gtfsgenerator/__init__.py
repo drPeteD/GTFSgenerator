@@ -2,7 +2,7 @@
 # coding=utf-8
 
 __author__      = 'DrPete, frazierb'
-__copyright__   = 'Copyright 2015'
+__copyright__   = 'Copyright 2016'
 __credits__     = ['Pete Dailey', 'Benjamin Frazier']
 __license__     = 'Apache'
 __maintainer__  = 'Dr. Pete Dailey'
