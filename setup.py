@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
+# Ref: https://wiki.python.org/moin/Distutils/Tutorial
+
+
 from distutils.core import setup
 
 setup(
         name='gtfsgenerator',
         version='0.9.0',
-        packages=['gtfsgenerator'],
+        packages=['gtfsgenerator', 'gtfsgenerator.Configuratiogtfn', 'gtfsgenerator.Calendar'],
         package_dir={'': 'src'},
         url='',
         license='MIT',

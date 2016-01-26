@@ -1,3 +1,5 @@
+__author__ = 'Dr. Pete Dailey'
+
 # Import Pandas
 import pandas as pd
 from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
@@ -7,73 +9,81 @@ from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, UST
 from termcolor import colored
 
 
+# class ServiceExceptions(object):
+#
+#     def __init__(self, configs):
 
-class ServiceExceptions(object):
+def ServiceExceptions(configs):
+    """
 
-    def __init__(self, configs):
+    :param configs:
+    :return:
+    """
 
-    self.start_date = configs.feed_start_date
-    self.end_date   = configs.feed_end_date
-    self.delta_max  = configs.delta_max
-    self.holidays   = configs.holidays
-    if not self.start_date:
+    start_date = configs.feed_start_date
+    end_date   = configs.feed_end_date
+    delta_max  = configs.delta_max
+    holidays   = configs.holidays
+    if not start_date:
         print(colored('No start date.', 'red'))
-    if not self.end_date:
+    if not end_date:
         print(colored('No end date.', 'red'))
-    if not self.delta_max:
+    if not delta_max:
         print(colored('No maximun feed length (days) specified.', 'red'))
-    _getDates(self, self.start_date, self.end_date, self.delta_max, self.holidays)
+
+    getDates(start_date, end_date, delta_max, holidays)
 
 
-    def _getDates(self, self.start_date, self.end_date, self.delta_max, self.holidays):
-        """
+def getDates(self, start_date, end_date, delta_max, holidays):
+    """
 
-        :param begin_date:
-        :param end_date:
-        :param dt_max:
-        :param holiday_list:
-        :return:
-        """
+    :param begin_date:
+    :param end_date:
+    :param dt_max:
+    :param holiday_list:
+    :return:
+    """
 
-    self.start_date = pd.Timestamp(self.feed_start_date)
-    self.end_date   = pd.Timestamp(self.feed_end_date)
-    self.my_calendar = determine_calendar_dates(self.start_date, self.end_date, self.delta_max)
-    my_dates = select_agency_calendar_dates(self.my_calendar, self.holidays)
+    start_date = pd.Timestamp(start_date)
+    end_date   = pd.Timestamp(end_date)
+    my_calendar = determine_calendar_dates(start_date, end_date, delta_max)
+    my_dates = select_agency_calendar_dates(my_calendar, holidays)
     print('my dates:{}'.format(my_dates))
     cal_dates = []
-    for i in range(len(my_dates)):
-        cal_dates.append(my_dates[i].strftime('%Y%m%d'))
+    for element in enumerate(my_dates):
+        cal_dates.append(my_dates[element].strftime('%Y%m%d'))
     print(cal_dates)
+
     return cal_dates
 
 
-    def _determine_calendar_dates(self, start_date, end_date, delta_max):
-        """
+def determine_calendar_dates(self, start_date, end_date, delta_max):
+    """
 
-        :param start_date:
-        :param end_date:
-        :param dt_max:
-        :return:
-        """
-        cal = UsaWvCalendar()
-        delta = end_date - start_date
+    :param start_date:
+    :param end_date:
+    :param dt_max:
+    :return:
+    """
+    cal = UsaWvCalendar()
+    delta = end_date - start_date
 
-        # GTFS feeds can't be > 1 year from start date
-        print('{}  days between start and end date.'.format(delta))
+    # GTFS feeds can't be > 1 year from start date
+    print('{}  days between start and end date.'.format(delta))
 
-        if delta > pd.Timedelta(days=dt_max):
-            end_date = pd.DateOffset(days=364) + start_date
-            print('   New end date is {}'.format(end_date))
-        calendar = cal.holidays(start_date, end_date, return_name=True)
-        return calendar
+    if delta > pd.Timedelta(days=delta_max):
+        end_date = pd.DateOffset(days=364) + start_date
+        print('   New end date is {}'.format(end_date))
+    calendar = cal.holidays(start_date, end_date, return_name=True)
+    return calendar
 
-    def _select_agency_calendar_dates(calendar, holiday_list):
-        dates = []
-        for i in range(len(calendar.values)):
-            if calendar.values[i] in holiday_list:
-                # print(calendar.index[i], calendar.values[i])
-                dates.append(calendar.index[i])
-        return dates
+def select_agency_calendar_dates(calendar, holiday_list):
+    dates = []
+    for index, element in enumerate(calendar.values):
+        if calendar.values[element] in holiday_list:
+            # print(calendar.index[i], calendar.values[i])
+            dates.append(calendar.index[element])
+    return dates
 
 class UsaWvCalendar(AbstractHolidayCalendar):
     """

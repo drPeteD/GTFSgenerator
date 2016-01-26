@@ -27,25 +27,26 @@ Python script to:
         gtfsgenerator -c configs/krt.cfg --generate
 """
 
-import sys
-import os
-from os.path import expanduser
-from termcolor import colored
-from veryprettytable import VeryPrettyTable
-from gtfsgenerator.Configuration import Configuration
-from gtfsgenerator.Calendar import ServiceExceptions
 import argparse
 import csv
-from datetime import datetime
-from geopy.distance import vincenty
 import glob
-import gspread          # read Google sheets
+import os
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
+import zipfile
+from datetime import datetime
+from os.path import expanduser
+
+import gspread          # read Google sheets
+from geopy.distance import vincenty
+from oauth2client import tools
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
-from oauth2client import tools
-import subprocess
-import zipfile
+from termcolor import colored
+from veryprettytable import VeryPrettyTable
+
+from gtfsgenerator.Configuration import Configuration
 
 
 # TODO Read xls sheets
@@ -168,51 +169,51 @@ class GtfsWrite:
         '''
 
 
-class ServiceExceptions():
-    """
-    Determine and build holiday calendar.txt in YYYYMMDD format.
-
-    """
-
-    def __init__(self):
-        """
-
-        """
-        pass
-
-    def format_dates(self, dates, year):
-        '''
-        Format the days in the configuration as GTFS format YYYYMMDD.
-        Days can be numeric or a limited set of holiday names.
-
-        :param dates: holidays from config
-        :param year: year to determine complete date
-        :return: dates for the holidays specified as YYYYMMDD
-        '''
-
-        formatted_dates_dates = []
-        for date in dates:
-            if date == 'Thanksgiving DayUS':
-                formatted_dates_dates.append(self.determine_thanksgiving_usa(year))
-            elif date == 'New Years Day':
-                formatted_dates_dates.append('{}-01-01'.format(year))
-            elif date == 'Independence Day':
-                formatted_dates_dates.append('{}-07-04'.format(year))
-            elif date == 'Christmas Day':
-                formatted_dates_dates.append('{}-12-25'.format(year))
-            else:
-                formatted_dates_dates.append('{}-{}'.format(year, date))
-
-        # Print for terminal
-        c_note = colored('Service exceptions for {}.'.format(year), color='green')
-        print(c_note)
-
-        # self.display_calendar_dates(formatted_dates_dates)
-
-        # Replace the dash character with empty from each entry in the list.
-        formatted_dates_dates = [day.replace('-','') for day in formatted_dates_dates]
-
-        return formatted_dates_dates
+# class ServiceExceptions():
+#     """
+#     Determine and build holiday calendar.txt in YYYYMMDD format.
+#
+#     """
+#
+#     def __init__(self):
+#         """
+#
+#         """
+#         pass
+#
+#     def format_dates(self, dates, year):
+#         '''
+#         Format the days in the configuration as GTFS format YYYYMMDD.
+#         Days can be numeric or a limited set of holiday names.
+#
+#         :param dates: holidays from config
+#         :param year: year to determine complete date
+#         :return: dates for the holidays specified as YYYYMMDD
+#         '''
+#
+#         formatted_dates_dates = []
+#         for date in dates:
+#             if date == 'Thanksgiving DayUS':
+#                 formatted_dates_dates.append(self.determine_thanksgiving_usa(year))
+#             elif date == 'New Years Day':
+#                 formatted_dates_dates.append('{}-01-01'.format(year))
+#             elif date == 'Independence Day':
+#                 formatted_dates_dates.append('{}-07-04'.format(year))
+#             elif date == 'Christmas Day':
+#                 formatted_dates_dates.append('{}-12-25'.format(year))
+#             else:
+#                 formatted_dates_dates.append('{}-{}'.format(year, date))
+#
+#         # Print for terminal
+#         c_note = colored('Service exceptions for {}.'.format(year), color='green')
+#         print(c_note)
+#
+#         # self.display_calendar_dates(formatted_dates_dates)
+#
+#         # Replace the dash character with empty from each entry in the list.
+#         formatted_dates_dates = [day.replace('-','') for day in formatted_dates_dates]
+#
+#         return formatted_dates_dates
 
     # def display_calendar_dates(self, dates):
     #     '''
@@ -237,36 +238,36 @@ class ServiceExceptions():
     #     df['DOW'] = df['DOW'].apply(lambda x: days[x])
     #     print('{}'.format(df))
 
-    def determine_thanksgiving_usa(self, year):
-        '''
-        Determine the date of Thanksgiving in the USA given a year.
-        Method: 1. Determine the DOW for the first of November.
-                2. Apply an offset from the first day of November to the first Thursday
-                3. Add 21 days to the first Thursday to determine Thanksgiving day.
-
-        :param year: The year for the desired Thanksgiving Day.
-        :return: The date of the fourth Thursday of November for the specified year.
-        '''
-        import datetime
-
-        first_nov = '{}-11-01'.format(year)
-        first_nov = datetime.datetime.strptime(first_nov, '%Y-%m-%d')
-        pre_thurs = [6, 0, 1, 2]  # Days that Nov 1 is before the 1st Thursday
-        first_nov_dow = first_nov.weekday()  # day of week: Mon=0,Th=3,Sun=6
-
-        # Determine how many days offset from Nov 1 to the first Thursday
-        if first_nov_dow in pre_thurs:
-            if first_nov_dow == 6:  # Nov 1 = Sunday
-                first_th_delta = 4
-            else:
-                first_th_delta = 3 - first_nov_dow  # Nov 1 is Mon-Wed
-        else:
-            first_th_delta = 3 - first_nov_dow  # Nov 1 is Fri-Sat
-
-        # Add 21 days/3 weeks to the first Thursday of November to determine Thanksgiving Day.
-        thankgiving = first_nov + datetime.timedelta(days=first_th_delta + 21)
-        thankgiving = '{:%Y-%m-%d}'.format(thankgiving)  # !! leading ':' !!
-        return (thankgiving)
+    # def determine_thanksgiving_usa(self, year):
+    #     '''
+    #     Determine the date of Thanksgiving in the USA given a year.
+    #     Method: 1. Determine the DOW for the first of November.
+    #             2. Apply an offset from the first day of November to the first Thursday
+    #             3. Add 21 days to the first Thursday to determine Thanksgiving day.
+    #
+    #     :param year: The year for the desired Thanksgiving Day.
+    #     :return: The date of the fourth Thursday of November for the specified year.
+    #     '''
+    #     import datetime
+    #
+    #     first_nov = '{}-11-01'.format(year)
+    #     first_nov = datetime.datetime.strptime(first_nov, '%Y-%m-%d')
+    #     pre_thurs = [6, 0, 1, 2]  # Days that Nov 1 is before the 1st Thursday
+    #     first_nov_dow = first_nov.weekday()  # day of week: Mon=0,Th=3,Sun=6
+    #
+    #     # Determine how many days offset from Nov 1 to the first Thursday
+    #     if first_nov_dow in pre_thurs:
+    #         if first_nov_dow == 6:  # Nov 1 = Sunday
+    #             first_th_delta = 4
+    #         else:
+    #             first_th_delta = 3 - first_nov_dow  # Nov 1 is Mon-Wed
+    #     else:
+    #         first_th_delta = 3 - first_nov_dow  # Nov 1 is Fri-Sat
+    #
+    #     # Add 21 days/3 weeks to the first Thursday of November to determine Thanksgiving Day.
+    #     thankgiving = first_nov + datetime.timedelta(days=first_th_delta + 21)
+    #     thankgiving = '{:%Y-%m-%d}'.format(thankgiving)  # !! leading ':' !!
+    #     return (thankgiving)
 
 
 def pretty_print_args(configs):
@@ -1313,7 +1314,36 @@ def get_google_worksheet_row_col_list(column_list, worksheet, configs):
     return row_list, column_list
 
 
+def get_excel_worksheet_row_col_list(column_list, worksheet, configs):
+    """
+
+    :param column_list:
+    :param worksheet:
+    :param configs:
+    :return:
+    """
+
+
+
 def get_google_worksheet_data(row_list, worksheet):
+    # Row Value list
+    worksheet_data = []
+
+    # Add all the row values with data from the G_worksheet to worksheet_data list
+    for row in row_list:
+        worksheet_data.append(worksheet.row_values(row))
+
+    return worksheet_data
+
+
+def get_excel_worksheet_data(row_list, worksheet):
+    """
+
+    :param row_list:
+    :param worksheet:
+    :return:
+    """
+
     # Row Value list
     worksheet_data = []
 
@@ -1550,9 +1580,10 @@ def main (argv=None):
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             # Call the test function
 
-            service_id = '?'
-            worksheet_title = 'test_worksheet'
-            write_calendar_dates_file(service_id, worksheet_title, configs)
+            ServiceExceptions(configs)
+            # service_id = '?'
+            # worksheet_title = 'test_worksheet'
+            # write_calendar_dates_file(service_id, worksheet_title, configs)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:
