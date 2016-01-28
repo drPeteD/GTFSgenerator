@@ -31,13 +31,15 @@ import argparse
 import csv
 import glob
 import os
+from pandas import read_excel
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime
 from os.path import expanduser
-
+from gtfsgenerator.Configuration import Configuration
+import GtfsCalendar
 import gspread          # read Google sheets
 from geopy.distance import vincenty
 from oauth2client import tools
@@ -46,7 +48,6 @@ from oauth2client.file import Storage
 from termcolor import colored
 from veryprettytable import VeryPrettyTable
 
-from gtfsgenerator.Configuration import Configuration
 
 
 # TODO Read xls sheets
@@ -141,11 +142,17 @@ class GtfsHeader:
         elif filename == 'trips':
             header = self.trips()
 
-        # Open and overwrite existing file
-        #print('Header class file and path:{}'.format(path))
-        f = open(path, 'w')
-        f.write('{}\n'.format(header))
-        f.close()
+        # Open and overwrite existing file:
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path)) # make directory from full path
+            print('  >>> Created directory:{} <<<'.format(os.path.dirname(path)))
+        try:
+            f = open(path, 'w')
+            f.write('{}\n'.format(header))
+            f.close()
+        except: # FileNotFoundError:
+            # write exception
+            print('Write exception at write_header.')
 
 
 class GtfsWrite:
@@ -848,10 +855,17 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
     # File header
     x = GtfsHeader()
     x.write_header('calendar_dates', gtfs_file)
-
     exception_type = '2'
     # TODO complete service exceptions
-    dates = ServiceExceptions(configs)
+    holiday_list = configs.holidays.split(',')
+    exp_days = len(holiday_list)
+    print('There are {} holidays in configs:{}'.format(len(holiday_list),holiday_list))
+    for index, holiday in enumerate(holiday_list):
+        print('Holiday {} is {}.'.format(index, holiday))
+
+    dates = GtfsCalendar.ServiceExceptions(configs, holiday_list)
+    if len(dates) != exp_days:
+        print('Expected {} days, recieved {} days.'.format(exp_days, len(dates)))
     print('Returned formatted dates:{}'.format(dates))
 
     # Setup a line entry for each holiday
@@ -1324,7 +1338,6 @@ def get_excel_worksheet_row_col_list(column_list, worksheet, configs):
     """
 
 
-
 def get_google_worksheet_data(row_list, worksheet):
     # Row Value list
     worksheet_data = []
@@ -1526,9 +1539,11 @@ def run_schedule_viewer(configs):
 
 
 def main (argv=None):
-    # Let the user know the python version and platform that the app is running on
+    # Display the the system path, Python version, and platform that is running.
+    print(sys.path)
     print('Python {} on {}'.format(sys.version, sys.platform))
     print('Hex version is: {}'.format(sys.hexversion))
+
 
     # Ref: http://stackoverflow.com/questions/3609852/which-is-the-best-way-to-allow-configuration-options-be
     # -overridden-at-the-comman
@@ -1580,10 +1595,10 @@ def main (argv=None):
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             # Call the test function
 
-            ServiceExceptions(configs)
-            # service_id = '?'
-            # worksheet_title = 'test_worksheet'
-            # write_calendar_dates_file(service_id, worksheet_title, configs)
+            # get_excel_worksheet_data(row_list, worksheet)
+            service_id = '?'
+            worksheet_title = 'test_worksheet'
+            write_calendar_dates_file(service_id, worksheet_title, configs)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:
