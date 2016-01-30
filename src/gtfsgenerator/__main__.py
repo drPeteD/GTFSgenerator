@@ -31,6 +31,7 @@ import argparse
 import csv
 import glob
 import os
+from pandas import to_datetime
 from pandas import read_excel
 import subprocess
 import sys
@@ -310,17 +311,18 @@ def get_config_parser_for_passed_in_config_file():
     return config_parser
 
 
-def open_google_workbook(defaults, configs):
+def open_google_workbook(google_workbook_name, defaults, configs):
     credentials = get_credentials(client_id=defaults.get('client_id'),
                                   client_secret=defaults.get('client_secret'),
-                                  client_scope=defaults.get('client_scope'),
+                                  client_scope=configs.client_scope,
                                   redirect_uri=defaults.get('redirect_uri'),
                                   oauth_cred_file_name=defaults.get('oauth_cred_file_name'))
 
     # Ref: http://www.lovholm.net/2013/11/25/work-programmatically-with-google-spreadsheets-part-2/
     gc = gspread.authorize(credentials)
-    # Google workbook name is in the config file
-    route_workbook = gc.open(configs.google_workbook_name)
+    # Google workbook name is in the config file. <<< Pass in from config list!
+    # route_workbook = gc.open(configs.google_workbook_name) <<< older single workbook
+    route_workbook = gc.open(google_workbook_name)
 
     return route_workbook
 
@@ -1386,7 +1388,23 @@ def write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs):
 
 def write_run_info_to_file(start_time, stop_time, title, note, configs):
     # Open and append to  existing file
-    f = open(configs.stats_file, "a+")
+    print('from write_run_info_to_file\n filename:{}\n start_time:{} stop_time:{}'.format\
+              (os.path.join(configs.stats_file_path, configs.stats_filename),start_time, stop_time))
+    if not os.path.exists(os.path.expanduser(configs.stats_file_path)):
+        os.makedirs(os.path.dirname(os.path.expanduser(configs.stats_file_path))) # make directory from full path
+        print(colored('  >>> Created directory:{} <<<'.format\
+                          (os.path.dirname(os.path.expanduser(configs.stats_file_path))),color='green'))
+    if not (os.path.isfile(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename))):
+        print(colored('{} does not exist, creating {}'.format\
+                          (os.path.expanduser(configs.stats_filename), \
+                           os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename)), \
+                      color='red'))
+        f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), 'w')
+        f.write('Start {}\n'.format(to_datetime('now').strftime('%H:%M:%S.%f %A %B %d %Y ')))
+    else:
+        f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), "a")
+        f.write('Start {}\n'.format(to_datetime('now').strftime('%H:%M:%S.%f %A %B %d %Y ')))
+    # Determine time difference from start
     tdelta = stop_time - start_time
     info_header = '  {} {}'.format(note, title)
     run_info = '      Elapsed time:{} '.format(tdelta)
@@ -1407,7 +1425,7 @@ def read_worksheet_data_from_csv(current_worksheet_title, configs):
 
 def print_et (text_color, start_time, title, note, configs):
 
-    stop_time = datetime.now()
+    stop_time = to_datetime('now')
     tdelta = stop_time - start_time
     tdelta_colored = colored(tdelta, text_color, 'on_grey')
     c_note = colored(note, color=text_color)
@@ -1602,186 +1620,191 @@ def main (argv=None):
 
             # <<<<<<<<<< Generate Generate Generate Generate Generate >>>>>>>>>>
 
-            print("generating...\n")
             start_time = datetime.now()
-            note = '{}'.format('{}\nStart processing {} workbook {}.'.format(start_time, configs.agency_id, configs.google_workbook_name))
-            c_note = colored(note,color='green',on_color='on_grey')
-            print(c_note)
-            print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
+            print("generating...\n")
+            # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
+            workbooks = []
+            workbooks = configs.google_workbook_names.split(',')
 
-            # Google workbook; get G_workbook name from configs and worksheets object from the G_workbook.
-            route_workbook = open_google_workbook(defaults, configs)
-            worksheets = route_workbook.worksheets()
-            # print('worksheets:{}'.format(worksheets))
+            for workbook in workbooks:
 
-            # Select the sheets to process. Create empty list to hold processed sheet titles.
-            sheets  = []
+                note = '{}'.format('{}\nStart processing {} workbook {}.'.format(\
+                        start_time.strftime('%H:%M:%S.%f %A %B %d %Y '), configs.agency_id, workbook))
+                c_note = colored(note,color='green',on_color='on_grey')
+                print(c_note)
+                print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
+                print(colored('Workbook:{}'.format(workbook)))
+                route_workbook = open_google_workbook(workbook, defaults, configs)
+                worksheets = route_workbook.worksheets()
+                # print('worksheets:{}'.format(worksheets))
 
-            for worksheet in worksheets:
-                sheets.append(worksheet.title)
-            print('sheets:{}'.format(sheets))
-            p_sheets   = []
+                # Select the sheets to process. Create empty list to hold processed sheet titles.
+                sheets  = []
 
-            # Exclude worksheets named Master and Template
-            ignore_list = configs.ignore_sheets.split(',')
-            print('ignore list:{}'.format(ignore_list))
+                for worksheet in worksheets:
+                    sheets.append(worksheet.title)
+                print('sheets:{}'.format(sheets))
+                p_sheets   = []
 
-            # Loop throught the list of worksheet titles in G_worksheets contained in the worksheets object.
-            for worksheet in worksheets:
-                current_worksheet_title = worksheet.title
-                note = '{} start.'.format(worksheet)
+                # Exclude worksheets named Master and Template
+                ignore_list = configs.ignore_sheets.split(',')
+                print('ignore list:{}'.format(ignore_list))
 
-                # Skip the ignore list of worksheets
-                if not current_worksheet_title in ignore_list:
+                # Loop throught the list of worksheet titles in G_worksheets contained in the worksheets object.
+                for worksheet in worksheets:
+                    current_worksheet_title = worksheet.title
+                    note = '{} start.'.format(worksheet)
 
-                    # Process the worksheet title that is in the 'sheets' list.
-                    # TODO Add process_worksheet function
+                    # Skip the ignore list of worksheets
+                    if not current_worksheet_title in ignore_list:
 
-                    if current_worksheet_title in sheets:
+                        # Process the worksheet title that is in the 'sheets' list.
+                        # TODO Add process_worksheet function
 
-                        note = '{}'.format('{}.'.format(current_worksheet_title))
-                        c_note = colored(note,color='yellow',on_color='on_grey')
-                        print(c_note)
-                        print_et(text_color='green', start_time=start_time, title='Begin processing.', note=note, configs=configs)
+                        if current_worksheet_title in sheets:
 
-                        #create_output_dir(configs)
-                        create_worksheet_name_output_dir(current_worksheet_title, configs=configs)
-                        print('Creating output directory...')
+                            note = '{}'.format('{}.'.format(current_worksheet_title))
+                            c_note = colored(note,color='yellow',on_color='on_grey')
+                            print(c_note)
+                            print_et(text_color='green', start_time=start_time, title='Begin processing.', note=note, configs=configs)
 
-                        # Put an exceptions file in the directory
-                        create_exceptions_file(current_worksheet_title, configs)
-                        print('Creating exceptions file...')
+                            #create_output_dir(configs)
+                            create_worksheet_name_output_dir(current_worksheet_title, configs=configs)
+                            print('Creating output directory...')
 
-                        # Required rows: r2=headings(optional) r3=data r6=trip headings from configuration
-                        # Cast list as integer values
+                            # Put an exceptions file in the directory
+                            create_exceptions_file(current_worksheet_title, configs)
+                            print('Creating exceptions file...')
 
-                        head_data_rows = [int(s) for s in configs.head_data_rows.split(",")]
+                            # Required rows: r2=headings(optional) r3=data r6=trip headings from configuration
+                            # Cast list as integer values
 
-                        # Required columns: 2=stop seq 3=stopID 10-21=stop info 22-25=trip info from configuration file.
-                        stops_column_list = [int(s) for s in configs.stop_data_columns.split(",")]
+                            head_data_rows = [int(s) for s in configs.head_data_rows.split(",")]
 
-                        # Print the current worksheet title in color
-                        current_worksheet_colored = colored(worksheet.title, 'green', 'on_grey')
-                        print('{}'.format(current_worksheet_colored))
+                            # Required columns: 2=stop seq 3=stopID 10-21=stop info 22-25=trip info from configuration file.
+                            stops_column_list = [int(s) for s in configs.stop_data_columns.split(",")]
 
-                        # TODO: Process any type of worksheet;  .xls, csv, or .ods
-                        # http://davidmburke.com/2013/02/13/pure-python-convert-any-spreadsheet-format-to-list/
+                            # Print the current worksheet title in color
+                            current_worksheet_colored = colored(worksheet.title, 'green', 'on_grey')
+                            print('{}'.format(current_worksheet_colored))
 
-                        # TODO Add get_stop_times_rows as a function.
-                        # Get stop_times rows.
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Start worksheet data retrieval.', note=note,
-                                 configs=configs)
+                            # TODO: Process any type of worksheet;  .xls, csv, or .ods
+                            # http://davidmburke.com/2013/02/13/pure-python-convert-any-spreadsheet-format-to-list/
 
-                        if configs.source_type == 'google':
+                            # TODO Add get_stop_times_rows as a function.
+                            # Get stop_times rows.
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Start worksheet data retrieval.', note=note,
+                                     configs=configs)
 
-                            # Return a list of row numbers that contain stop data; append columns with time data
-                            stop_rows, stops_column_list = get_google_worksheet_row_col_list(stops_column_list,
-                                                                                             worksheet, configs)
-                            # Combine static (non-stop info) and dynamic (stop info) row numbers
-                            row_list = head_data_rows + stop_rows
-                            row_list.sort()
+                            if configs.source_type == 'google':
 
-                            # Get the cell values for all rows with information from the G_worksheet.
+                                # Return a list of row numbers that contain stop data; append columns with time data
+                                stop_rows, stops_column_list = get_google_worksheet_row_col_list(stops_column_list,
+                                                                                                 worksheet, configs)
+                                # Combine static (non-stop info) and dynamic (stop info) row numbers
+                                row_list = head_data_rows + stop_rows
+                                row_list.sort()
 
-                            ws_data = get_google_worksheet_data(row_list, worksheet)
+                                # Get the cell values for all rows with information from the G_worksheet.
 
-                            ###>>  Uncomment to write retrieved worksheet data to a csv. <<###
-                            # write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs)
+                                ws_data = get_google_worksheet_data(row_list, worksheet)
+
+                                ###>>  Uncomment to write retrieved worksheet data to a csv. <<###
+                                # write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs)
 
 
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Getting worksheet row data.',
-                                 note=note, configs=configs)
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Getting worksheet row data.',
+                                     note=note, configs=configs)
 
-                        # Begin writing gtfs files
+                            # Begin writing gtfs files
 
-                        # TODO add test for output folder
+                            # TODO add test for output folder
 
-                        # Agency.txt processing
-                        write_agency_file(worksheet_title=current_worksheet_title, configs=configs)
+                            # Agency.txt processing
+                            write_agency_file(worksheet_title=current_worksheet_title, configs=configs)
 
-                        # Fare_attributes.txt processing. Only header at present.
-                        write_fare_attributes_file(worksheet_title=current_worksheet_title, configs=configs)
+                            # Fare_attributes.txt processing. Only header at present.
+                            write_fare_attributes_file(worksheet_title=current_worksheet_title, configs=configs)
 
-                        # Fare_rules.txt processing. Only header at present.
-                        write_fare_rules_file(worksheet_title=current_worksheet_title, configs=configs)
+                            # Fare_rules.txt processing. Only header at present.
+                            write_fare_rules_file(worksheet_title=current_worksheet_title, configs=configs)
 
-                        # Feed_info.txt processing.
-                        write_feed_info_file(worksheet_title=current_worksheet_title, configs=configs)
+                            # Feed_info.txt processing.
+                            write_feed_info_file(worksheet_title=current_worksheet_title, configs=configs)
 
-                        # Routes.txt processing.
-                        write_routes_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
+                            # Routes.txt processing.
+                            write_routes_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
 
-                        # Calendar.txt processing
-                        write_calendar_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
+                            # Calendar.txt processing
+                            write_calendar_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
 
-                        # Calendar_dates.txt processing
-                        # TODO rework service exception determination
-                        service_id = ws_data[1][28]
-                        write_calendar_dates_file(service_id, worksheet_title=current_worksheet_title, configs=configs)
+                            # Calendar_dates.txt processing
+                            # TODO rework service exception determination
+                            service_id = ws_data[1][28]
+                            write_calendar_dates_file(service_id, worksheet_title=current_worksheet_title, configs=configs)
 
-                        # Stops.txt processing
-                        #   Collect stops in memory for later merge.
-                        ws_stops = write_stops_file(worksheet_title=current_worksheet_title, rows=row_list,
-                                                    worksheet=ws_data, configs=configs)
+                            # Stops.txt processing
+                            #   Collect stops in memory for later merge.
+                            ws_stops = write_stops_file(worksheet_title=current_worksheet_title, rows=row_list,
+                                                        worksheet=ws_data, configs=configs)
 
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Stops processing.', note=note,
-                                 configs=configs)
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Stops processing.', note=note,
+                                     configs=configs)
 
-                        # Trips.txt header. Trips are written from stop_times.txt processing
-                        write_trips_header(worksheet_title=current_worksheet_title, configs=configs)
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Stop_times processing.', note=note,
-                                 configs=configs)
+                            # Trips.txt header. Trips are written from stop_times.txt processing
+                            write_trips_header(worksheet_title=current_worksheet_title, configs=configs)
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Stop_times processing.', note=note,
+                                     configs=configs)
 
-                        # Stop times and trips processing
-                        write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=ws_stops, worksheet=ws_data, configs=configs)
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Start shapes.txt from kml.',
-                                 note=note, configs=configs)
+                            # Stop times and trips processing
+                            write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=ws_stops, worksheet=ws_data, configs=configs)
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Start shapes.txt from kml.',
+                                     note=note, configs=configs)
 
-                        # Write_shapes.txt processing
-                        write_shapes_header(worksheet_title=current_worksheet_title, configs=configs)
-                        shapeID     = ws_data[1][25]
-                        print('shapeID:{}'.format(shapeID))
-                        write_shape_from_kml(shapeID=shapeID, title=current_worksheet_title, configs=configs)
+                            # Write_shapes.txt processing
+                            write_shapes_header(worksheet_title=current_worksheet_title, configs=configs)
+                            shapeID     = ws_data[1][25]
+                            print('shapeID:{}'.format(shapeID))
+                            write_shape_from_kml(shapeID=shapeID, title=current_worksheet_title, configs=configs)
 
-                        print('Worksheet {} complete.'.format(current_worksheet_title))
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Worksheet {} complete.'.format(current_worksheet_title),
-                                 note=note, configs=configs)
+                            print('Worksheet {} complete.'.format(current_worksheet_title))
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Worksheet {} complete.'.format(current_worksheet_title),
+                                     note=note, configs=configs)
 
-                        # Zip the worksheet GTFS files
-                        print('Zipping GTFS.txt files...')
-                        output_path = os.path.join(os.path.expanduser(configs.gtfs_path_root), current_worksheet_title)
-                        out_filename = current_worksheet_title
-                        create_gtfs_zip(output_path, out_filename)
+                            # Zip the worksheet GTFS files
+                            print('Zipping GTFS.txt files...')
+                            output_path = os.path.join(os.path.expanduser(configs.gtfs_path_root), current_worksheet_title)
+                            out_filename = current_worksheet_title
+                            create_gtfs_zip(output_path, out_filename)
 
-                        # Run feedValidator with the worksheet's zipped GTFS files as input
-                        note = '{}'.format('')
-                        print_et(text_color='green', start_time=start_time, title='Validating worksheet {}.'.format(current_worksheet_title),
-                                 note=note, configs=configs)
-                        folder_path = current_worksheet_title
-                        filename = current_worksheet_title
-                        run_validator(folder_path, filename, configs)
+                            # Run feedValidator with the worksheet's zipped GTFS files as input
+                            note = '{}'.format('')
+                            print_et(text_color='green', start_time=start_time, title='Validating worksheet {}.'.format(current_worksheet_title),
+                                     note=note, configs=configs)
+                            folder_path = current_worksheet_title
+                            filename = current_worksheet_title
+                            run_validator(folder_path, filename, configs)
 
-                        # Add worksheet title to list of processed worksheets for merge function
-                        p_sheets.append(current_worksheet_title)
+                            # Add worksheet title to list of processed worksheets for merge function
+                            p_sheets.append(current_worksheet_title)
 
-            # Merge feeds in the processed sheets list
-            print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
-            note = '{}'.format('')
-            print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
-            combine_gtfs_feeds(worksheets=p_sheets, configs=configs)
+                # Merge feeds in the processed sheets list
+                print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
+                note = '{}'.format('')
+                print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
+                combine_gtfs_feeds(worksheets=p_sheets, configs=configs)
 
-            # Startup the schedule_viewer with the master GTFS.zip
-            # run_schedule_viewer(configs)
+                # Startup the schedule_viewer with the master GTFS.zip
+                # run_schedule_viewer(configs)
 
-            print_et(text_color='red', start_time=start_time, title='Finished processing.', note='END',
-                     configs=configs)
-            print('')
+                print_et(text_color='red', start_time=start_time, title='Finished processing.\n', note='END',
+                         configs=configs)
 
 
 
