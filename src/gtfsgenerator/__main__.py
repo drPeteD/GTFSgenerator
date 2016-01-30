@@ -843,9 +843,9 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
     This function is called at the end of the write_calendar function, as the service_id required for
         the calendar_dates output is generated from the worksheet entries.
         Duplicates are stripped out of the feed later.
-    :param worksheet_title:
-    :param worksheet:
-    :param configs:
+    :param service_id: Service ID is the name of the servcie (e.g., weekday, saturday) from the worksheet
+    :param worksheet_title: The worksheet title is also the folder name of the feed file location for the trip.
+    :param configs: The configs object containing a holiday list and output locations
     :return:
     '''
 
@@ -856,22 +856,19 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
     x = GtfsHeader()
     x.write_header('calendar_dates', gtfs_file)
     exception_type = '2'
-    # TODO complete service exceptions
-    holiday_list = configs.holidays.split(',')
-    exp_days = len(holiday_list)
-    print('There are {} holidays in configs:{}'.format(len(holiday_list),holiday_list))
-    for index, holiday in enumerate(holiday_list):
-        print('Holiday {} is {}.'.format(index, holiday))
 
-    dates = GtfsCalendar.ServiceExceptions(configs, holiday_list)
-    if len(dates) != exp_days:
-        print('Expected {} days, recieved {} days.'.format(exp_days, len(dates)))
-    print('Returned formatted dates:{}'.format(dates))
+    # Display expected and received holidays to aid troubleshooting
+    print('There are {} holidays in configs.'.format(len(configs.holidays.split(','))))
+
+    dates = GtfsCalendar.ServiceExceptions(configs)
+
+    # Display return values
+    if len(dates) != len(configs.holidays.split(',')):
+        print(colored('Expected {} days, recieved {} days.'.format(len(configs.holidays.split(',')), len(dates)), color='red'))
+    else:
+        print('Returned formatted dates:{}'.format(dates))
 
     # Setup a line entry for each holiday
-
-    print('  service exception dates:{}'.format(dates))
-
     # Open and append date to existing file
     f = open(gtfs_file, "a+")
     for ex_day in dates:
