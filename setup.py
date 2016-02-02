@@ -8,7 +8,7 @@ from distutils.core import setup
 setup(
         name='gtfsgenerator',
         version='0.9.0',
-        packages=['gtfsgenerator', 'gtfsgenerator.Configuratiogtfn', 'gtfsgenerator.Calendar'],
+        packages=['gtfsgenerator'],
         package_dir={'': 'src'},
         url='',
         license='MIT',
