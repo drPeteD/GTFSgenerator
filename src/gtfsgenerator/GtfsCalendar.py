@@ -23,20 +23,20 @@ def ServiceExceptions(configs):
     :return: a list containing strings of dates in %Y%m%d format.
     """
 
-    start_date = configs.feed_start_date
-    end_date   = configs.feed_end_date
-    delta_max  = configs.delta_max
-    holiday_list = configs.holidays
+    start_date      = configs.feed_start_date
+    end_date        = configs.feed_end_date
+    delta_max       = configs.delta_max
+    holiday_list    = configs.holidays
     # TODO 'process' the holiday text to remove white space and apostrophes
     if not start_date:
         print(colored('No start date, assuming today.', 'red'))
         start_date = pd.datetime.today().strftime('%Y%m%d')
-    if not end_date:
-        print(colored('No end date, adding delta of {} to start.', 'red').format(delta_max))
-        end_date   = start_date + DateOffset(days=364)
     if not delta_max:
         print(colored('No maximun feed length specified, assuming 364 days.', 'red'))
         delta_max = 364
+    if not end_date:
+        print(colored('No end date, adding delta of {} to start.', 'red').format(delta_max))
+        end_date = pd.datetime(start_date) + pd.DateOffset(days=delta_max)
     if not holiday_list:
         print(colored('No holidays specified.', 'red'))
 

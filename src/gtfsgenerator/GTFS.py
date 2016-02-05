@@ -2,12 +2,11 @@ __author__ = 'dr.pete.dailey'
 
 import os
 
-
 class GtfsHeader:
-    '''    The Header class returns the header line for the specified GTFS file.
+    '''    The Header class opens/overwrites the GTFS file and inserts a header line.
 
      Attributes:
-        name: gtfs file name.
+        name: gtfs file name (without the 'txt' extension)
         path: path to output location
         config: arguments from a configuration file
     '''
@@ -60,7 +59,7 @@ class GtfsHeader:
         trips           = 'route_id,service_id,trip_id,trip_headsign,trip_short_name,direction_id,block_id,shape_id,wheelchair_accessible,bikes_allowed'
         return trips
 
-    def write_header(self, filename, path):
+    def write_header(self, filename, worksheet_name_dir):
         '''
         Write the GTFS header file for the specified file name (agency, shapes, routes, etc)
             to the root (+ addln folder). Overwrite existing file.
@@ -91,13 +90,40 @@ class GtfsHeader:
             header = self.trips()
 
         # Open and overwrite existing file:
-        if not os.path.exists(path):
-            os.makedirs(os.path.dirname(path)) # make directory from full path
-            print('  >>> Created directory:{} <<<'.format(os.path.dirname(path)))
-        try:
-            f = open(path, 'w')
-            f.write('{}\n'.format(header))
-            f.close()
-        except: # FileNotFoundError:
-            # write exception
-            print('Write exception at write_header.')
+        print('{}--> <<< Does directory {} exist? {}'.format(filename, worksheet_name_dir, os.path.exists(worksheet_name_dir)))
+        if os.path.exists(worksheet_name_dir):
+            # print(colored('  >>> Directory exists:{} <<<'.format(worksheet_name_dir)),color='green')
+            print('  >>> Directory exists:{} <<<'.format(worksheet_name_dir))
+
+        else:
+            os.makedirs(worksheet_name_dir)
+            # print(colored('  >>> Created directory:{} <<<'.format(worksheet_name_dir)),color='red')
+            print('  >>> Created directory:{} <<<'.format(worksheet_name_dir))
+
+        filename = filename + '.txt'
+        f = open(os.path.join( worksheet_name_dir, filename ), 'w')
+        f.write('{}\n'.format(header))
+        f.close()
+
+
+class GtfsWrite:
+    '''
+    Write the specified file
+    '''
+
+    def __init__(self):
+        '''
+
+        :return:
+        '''
+    def agency(self,header_flag,row_data,path,args):
+        '''
+        Write the agency.txt file data in the location specified by the path.
+        :param header_flag: True=overwrite file with header. False pass the information line
+        :param row_data: A line of data
+        :param path: Location of agency.txt
+        :param args: Not sure what is needed from args, path?
+        :return:
+        '''
+
+

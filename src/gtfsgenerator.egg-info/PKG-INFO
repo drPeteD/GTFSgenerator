@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: gtfsgenerator
+Version: 0.9.1
+Summary: Generate GTFS feed files from config, Google Sheet, & KMLs
+Home-page: UNKNOWN
+Author: Dr. Pete Dailey
+Author-email: daileypj@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN

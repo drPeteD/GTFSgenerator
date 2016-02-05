@@ -1,0 +1,10 @@
+src/gtfsgenerator/Configuration.py
+src/gtfsgenerator/GTFS.py
+src/gtfsgenerator/GtfsCalendar.py
+src/gtfsgenerator/__init__.py
+src/gtfsgenerator/__main__.py
+src/gtfsgenerator/test_serviceExceptions.py
+src/gtfsgenerator.egg-info/PKG-INFO
+src/gtfsgenerator.egg-info/SOURCES.txt
+src/gtfsgenerator.egg-info/dependency_links.txt
+src/gtfsgenerator.egg-info/top_level.txt

@@ -26,149 +26,28 @@ Python script to:
 
 import argparse
 import csv
+from datetime import datetime
 import glob
+import fileinput
 import os
-from pandas import to_datetime
-from pandas import read_excel
 import subprocess
 import sys
+import timeit # TODO Replace my time deltas with timeit.
 import xml.etree.ElementTree as ET
 import zipfile
-from datetime import datetime
 from os.path import expanduser
 import gspread          # read Google sheets
 from geopy.distance import vincenty
 from oauth2client import tools
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
+from pandas import to_datetime
+from pandas import read_excel
 from termcolor import colored
 from veryprettytable import VeryPrettyTable
 
 from gtfsgenerator.Configuration import Configuration
-from gtfsgenerator.GTFS import GtfsHeader
 from gtfsgenerator.GtfsCalendar import ServiceExceptions
-
-
-class GtfsWrite:
-    '''
-    Write the specified file
-    '''
-
-    def __init__(self):
-        '''
-
-        :return:
-        '''
-    def agency(self,header_flag,row_data,path,args):
-        '''
-        Write the agency.txt file data in the location specified by the path.
-        :param header_flag: True=overwrite file with header. False pass the information line
-        :param row_data: A line of data
-        :param path: Location of agency.txt
-        :param args: Not sure what is needed from args, path?
-        :return:
-        '''
-
-
-# class ServiceExceptions():
-#     """
-#     Determine and build holiday calendar.txt in YYYYMMDD format.
-#
-#     """
-#
-#     def __init__(self):
-#         """
-#
-#         """
-#         pass
-#
-#     def format_dates(self, dates, year):
-#         '''
-#         Format the days in the configuration as GTFS format YYYYMMDD.
-#         Days can be numeric or a limited set of holiday names.
-#
-#         :param dates: holidays from config
-#         :param year: year to determine complete date
-#         :return: dates for the holidays specified as YYYYMMDD
-#         '''
-#
-#         formatted_dates_dates = []
-#         for date in dates:
-#             if date == 'Thanksgiving DayUS':
-#                 formatted_dates_dates.append(self.determine_thanksgiving_usa(year))
-#             elif date == 'New Years Day':
-#                 formatted_dates_dates.append('{}-01-01'.format(year))
-#             elif date == 'Independence Day':
-#                 formatted_dates_dates.append('{}-07-04'.format(year))
-#             elif date == 'Christmas Day':
-#                 formatted_dates_dates.append('{}-12-25'.format(year))
-#             else:
-#                 formatted_dates_dates.append('{}-{}'.format(year, date))
-#
-#         # Print for terminal
-#         c_note = colored('Service exceptions for {}.'.format(year), color='green')
-#         print(c_note)
-#
-#         # self.display_calendar_dates(formatted_dates_dates)
-#
-#         # Replace the dash character with empty from each entry in the list.
-#         formatted_dates_dates = [day.replace('-','') for day in formatted_dates_dates]
-#
-#         return formatted_dates_dates
-
-    # def display_calendar_dates(self, dates):
-    #     '''
-    #     :param year: Year for the desired dates
-    #     :return: calendar_dates.txt file in GTFS format
-    #     Creates a calendar_dates file for the 'big four' US Holidays:
-    #       New Years Day
-    #       Independence Day
-    #       Thanksgiving Day
-    #       Christmas Day
-    #     '''
-    #     # Pandas is not necessary, used to display dates in a DataFrame
-    #
-    #     import pandas as pd
-    #
-    #     # Print date, holiday, and dow
-    #     df = pd.DataFrame(
-    #         {'Dates': dates, 'Holidays': dates})
-    #     df['Dates'] = pd.to_datetime(df['Dates'])
-    #     df['DOW'] = df['Dates'].dt.dayofweek
-    #     days = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
-    #     df['DOW'] = df['DOW'].apply(lambda x: days[x])
-    #     print('{}'.format(df))
-
-    # def determine_thanksgiving_usa(self, year):
-    #     '''
-    #     Determine the date of Thanksgiving in the USA given a year.
-    #     Method: 1. Determine the DOW for the first of November.
-    #             2. Apply an offset from the first day of November to the first Thursday
-    #             3. Add 21 days to the first Thursday to determine Thanksgiving day.
-    #
-    #     :param year: The year for the desired Thanksgiving Day.
-    #     :return: The date of the fourth Thursday of November for the specified year.
-    #     '''
-    #     import datetime
-    #
-    #     first_nov = '{}-11-01'.format(year)
-    #     first_nov = datetime.datetime.strptime(first_nov, '%Y-%m-%d')
-    #     pre_thurs = [6, 0, 1, 2]  # Days that Nov 1 is before the 1st Thursday
-    #     first_nov_dow = first_nov.weekday()  # day of week: Mon=0,Th=3,Sun=6
-    #
-    #     # Determine how many days offset from Nov 1 to the first Thursday
-    #     if first_nov_dow in pre_thurs:
-    #         if first_nov_dow == 6:  # Nov 1 = Sunday
-    #             first_th_delta = 4
-    #         else:
-    #             first_th_delta = 3 - first_nov_dow  # Nov 1 is Mon-Wed
-    #     else:
-    #         first_th_delta = 3 - first_nov_dow  # Nov 1 is Fri-Sat
-    #
-    #     # Add 21 days/3 weeks to the first Thursday of November to determine Thanksgiving Day.
-    #     thankgiving = first_nov + datetime.timedelta(days=first_th_delta + 21)
-    #     thankgiving = '{:%Y-%m-%d}'.format(thankgiving)  # !! leading ':' !!
-    #     return (thankgiving)
 
 
 def pretty_print_args(configs):
@@ -205,9 +84,16 @@ def get_config_parser_for_passed_in_config_file():
 
 
 def open_google_workbook(google_workbook_name, defaults, configs):
+    """
+    Open Google Sheets workbook with oauth2 credentials.
+    :param google_workbook_name:
+    :param defaults:
+    :param configs:
+    :return:
+    """
     credentials = get_credentials(client_id=defaults.get('client_id'),
                                   client_secret=defaults.get('client_secret'),
-                                  client_scope=configs.client_scope,
+                                  client_scope=defaults.get('client_scope'),
                                   redirect_uri=defaults.get('redirect_uri'),
                                   oauth_cred_file_name=defaults.get('oauth_cred_file_name'))
 
@@ -268,7 +154,7 @@ def get_credentials(client_id, client_secret, client_scope, redirect_uri, oauth_
     flow = OAuth2WebServerFlow(client_id=client_id, client_secret=client_secret, scope=client_scope,
                                redirect_uri=redirect_uri)
 
-    storage = Storage(os.path.join(expanduser("~"), oauth_cred_file_name))
+    storage = Storage(os.path.join(os.path.expanduser('~'), oauth_cred_file_name))
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
@@ -340,19 +226,14 @@ def print_stops_table(stops):
 def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, configs):
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'stop_times.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('stop_times', gtfs_file)
+    x.write_header('stop_times', worksheet_name_output_dir)
 
     # Define the number of row and column lists.
     route_type = worksheet[1][14]
     stop_time_data = []
-
-    # Look at the iterable row and column lists.
-    # print('Stop rows:{} Time columns:{} interations:{} Route type:{}'.format(len(rows), len(columns),
-    #                                                                          len(columns) * len(columns), route_type))
 
     # Setup write loop. Increment trip_id every iteration.
     trip_count = 0
@@ -370,7 +251,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
         trip_id = '{}-{}'.format(worksheet[1][20], worksheet[2][j])
 
         # Create a trip.txt entry
-        write_trips_file(trip_id, worksheet_title=worksheet_title, worksheet=worksheet, configs=configs)
+        write_trips_file(trip_id, worksheet_title=worksheet_name_output_dir, worksheet=worksheet, configs=configs)
 
         trip_count += 1
         trip_start_check = False
@@ -488,6 +369,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
     print('Writing stop_times data...')
 
     # Open and overwrite existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'stop_times.txt')
     f = open(gtfs_file, "a+")
     f.write(''.join(stop_time_data))
     f.close()
@@ -509,21 +391,10 @@ def write_trips_header(worksheet_title, configs):
     """
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'trips.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('trips', gtfs_file)
-
-
-def write_shapes_header(worksheet_title, configs):
-
-    worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'shapes.txt')
-
-    # File header
-    x = GtfsHeader()
-    x.write_header('shapes', gtfs_file)
+    x.write_header('trips', worksheet_name_output_dir)
 
 
 def write_trips_file(trip_id, worksheet_title, worksheet, configs):
@@ -568,10 +439,11 @@ def write_trips_file(trip_id, worksheet_title, worksheet, configs):
         write_exception_file(exception, worksheet_title, configs)
 
     # Can't write trips header for each trip.
-    worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'trips.txt')
+    # worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
+    worksheet_name_output_dir = worksheet_title
 
     # Open and append to  existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'trips.txt')
     f = open(gtfs_file, "a+")
     f.write('{}\n'.format(trip_line))
     f.close()
@@ -597,11 +469,10 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
     ws_stops    = []
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('stops', gtfs_file)
+    x.write_header('stops', worksheet_name_output_dir)
 
     # Iterate across the valid rows. The worksheet data has 4 [rows] of static data.
     for i in range(3, len(rows)):
@@ -667,6 +538,7 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
         print('write_stops --> stop_line:{}'.format(c_stop_line))
 
         # Open file for append
+        gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
         f = open(gtfs_file, "a+")
         f.write('{}\n'.format(stop))
         f.close()
@@ -690,11 +562,10 @@ def write_calendar_file(worksheet_title, worksheet, configs):
     '''
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('calendar', gtfs_file)
+    x.write_header('calendar', worksheet_name_output_dir)
 
     # REMEMBER Python counts begin at zero!
     # Worksheet data is in the third row; retrieved as the second list of row data.
@@ -726,6 +597,7 @@ def write_calendar_file(worksheet_title, worksheet, configs):
         write_exception_file(exception, worksheet_title, configs)
 
     # Open and append to existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar.txt')
     f = open(gtfs_file, "a+")
     f.write('{}'.format(calendar_info))
     f.close()
@@ -745,11 +617,10 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
     '''
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar_dates.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('calendar_dates', gtfs_file)
+    x.write_header('calendar_dates', worksheet_name_output_dir)
     exception_type = '2'
 
     # Display expected and received holidays to aid troubleshooting
@@ -765,6 +636,7 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
 
     # Setup a line entry for each holiday
     # Open and append date to existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar_dates.txt')
     f = open(gtfs_file, "a+")
     for ex_day in dates:
         calendar_dates_info = '{},{},{}\n'.format(service_id, ex_day, exception_type)
@@ -775,20 +647,24 @@ def write_calendar_dates_file(service_id, worksheet_title, configs):
 
 
 def write_routes_file(worksheet_title, worksheet, configs):
+    """
+
+    :param worksheet:
+    :return:
+    """
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'routes.txt')
 
-    # File header
     x = GtfsHeader()
-    x.write_header('routes', gtfs_file)
+    # File header
+    x.write_header('routes', worksheet_name_output_dir)
 
     # REMEMBER Python counts begin at zero!
     # Worksheet data is in the third row; retrieved as the second list of row data.
     # Address the nested list-static data as list[1] (second list)
 
-    # Collect all trips.txt values
     value = []
+    # Collect all trips.txt values
     for i in range(10, 18):
         if worksheet[1][i] is not None:
             value.append(worksheet[1][i])
@@ -806,32 +682,32 @@ def write_routes_file(worksheet_title, worksheet, configs):
     route_text_color    = value[7]
 
     route_info = '{},{},{},{},{},{},{},{},{}\n'.format(route_id, agency_id, route_short_name,
-                                                    route_long_name, route_desc, route_type, route_url, route_color,
-                                                    route_text_color)
-    print('Writing routes.txt to {}'.format(gtfs_file))
+                                                       route_long_name, route_desc, route_type, route_url, route_color,
+                                                       route_text_color)
 
     # Open and append to existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'routes.txt')
     f = open(gtfs_file, "a+")
     f.write('{}'.format(route_info))
+    print('Writing routes.txt to {}'.format(gtfs_file))
     f.close()
 
 
 def write_feed_info_file(worksheet_title, configs):
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'feed_info.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('feed_info', gtfs_file)
+    x.write_header('feed_info', worksheet_name_output_dir)
 
     feed_info = '{},{},{},{},{},{}\n'.format(configs.feed_publisher_name, configs.feed_publisher_url, configs.feed_lang,
                                              configs.feed_start_date, configs.feed_end_date, configs.feed_version)
 
-    print('Writting feed_info.txt to {}'.format(gtfs_file))
-
+    print('Writting feed_info.txt to {}'.format(worksheet_name_output_dir))
 
     # Open and overwrite existing file
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'feed_info.txt')
     f = open(gtfs_file, "a+")
     f.write('{}'.format(feed_info))
     f.close()
@@ -847,20 +723,19 @@ def write_agency_file(worksheet_title, configs):
     '''
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'agency.txt')
 
     # Overwrite with file header
     x = GtfsHeader()
-    x.write_header('agency', gtfs_file)
+    x.write_header('agency', worksheet_name_output_dir)
 
     # Agency.txt information
+    print('Writing agency.txt to {}'.format(worksheet_name_output_dir))
     agency_info = '{},{},{},{},{},{}'.format(str(configs.agency_id), str(configs.agency_name), str(configs.agency_url),
                                              str(configs.agency_timezone), str(configs.agency_lang), str(configs.agency_phone))
 
-    print('Writing agency.txt to {}'.format(gtfs_file))
 
     # Write info line to file
-    f = open(gtfs_file, "a+")
+    f = open(os.path.join(worksheet_name_output_dir,'agency.txt'), "a+")
     f.write('{}\n'.format(agency_info))
     f.close()
 
@@ -876,11 +751,10 @@ def write_fare_rules_file(worksheet_title, configs):
     '''
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'fare_rules.txt')
 
     # File header
     x = GtfsHeader()
-    x.write_header('fare_rules', gtfs_file)
+    x.write_header('fare_rules', worksheet_name_output_dir)
 
     # Fare_rules are in the configuration file. Make config string into list.
     fare_ids        = configs.fare_ids.split(',')
@@ -891,7 +765,9 @@ def write_fare_rules_file(worksheet_title, configs):
     # Construct line info
     for i in range(len(fare_ids)):
         line = '{},{},{},{},{}\n'.format(fare_ids[i], route_ids, origin_ids, destination_ids, contains_ids)
-        # Write info line to file
+
+        # Append info existing file
+        gtfs_file = os.path.join(worksheet_name_output_dir, 'fare_rules.txt')
         f = open(gtfs_file, "a+")
         f.write('{}'.format(line))
     f.close()
@@ -910,11 +786,10 @@ def write_fare_attributes_file(worksheet_title, configs):
 
     # Setup output file location
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
-    gtfs_file = os.path.join(worksheet_name_output_dir, 'fare_attributes.txt')
 
     # Overwrite with file header
     x = GtfsHeader()
-    x.write_header('fare_attributes', gtfs_file)
+    x.write_header('fare_attributes', worksheet_name_output_dir)
 
     # Fare_rules are in the configuration file. Make config string into list.
     fare_ids = configs.fare_ids.split(',')
@@ -925,6 +800,7 @@ def write_fare_attributes_file(worksheet_title, configs):
     for i in range(len(fare_ids)):
         line = '{},{},{},{},{},{}\n'.format(fare_ids[i], prices[i], configs.currency, configs.payment_method, transfers[i], durations[i])
         # Write info line to file
+        gtfs_file = os.path.join(worksheet_name_output_dir, 'fare_attributes.txt')
         f = open(gtfs_file, "a+")
         f.write('{}'.format(line))
     f.close()
@@ -933,7 +809,7 @@ def write_fare_attributes_file(worksheet_title, configs):
 def create_exceptions_file(current_worksheet_title, configs):
     # Clear exceptions file with over write
     worksheet_name_output_dir = get_worksheet_name_output_dir(current_worksheet_title, configs)
-    exception_file = os.path.join(configs.report_path, 'exceptions.dat')
+    exception_file = os.path.join(os.path.expanduser(configs.report_path), 'exceptions.txt')
     # Overwrite existing file
     f = open(exception_file, "w+")
     f.write('Worksheet:{}\n'.format(current_worksheet_title))
@@ -945,12 +821,12 @@ def write_exception_file(exception, worksheet_title, configs):
     # TODO Delete this
     # worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
 
-    exception_file = os.path.join(configs.report_path, 'exceptions.dat')
+    exception_file = os.path.join(os.path.expanduser(configs.report_path), 'exceptions.txt')
 
     # Open and append existing file (clear the file before opening the worksheet)
-    f = open(exception_file, "a+")
-    now = datetime.now()
-    f.write('{}     worksheet:{}\n   {}   '.format(now, worksheet_title, exception))
+    f = open(exception_file, "a")
+    now = datetime.now().strftime('%X')
+    f.write('worksheet:{}\n   exception:{}  {} '.format(worksheet_title, exception, now))
     f.close()
 
 
@@ -994,6 +870,15 @@ def get_coords_elements_from_root(root):
     else:
         allCoordsElements = root.findall('{0}Document/{0}Placemark/{0}LineString/{0}coordinates'.format(namespace))
         return allCoordsElements
+
+
+def write_shapes_header(worksheet_title, configs):
+
+    worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
+
+    # File header
+    x = GtfsHeader()
+    x.write_header('shapes', worksheet_name_output_dir)
 
 
 def write_shape_from_kml(shapeID, title, configs):
@@ -1293,20 +1178,20 @@ def write_run_info_to_file(start_time, stop_time, title, note, configs):
                            os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename)), \
                       color='red'))
         f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), 'w')
-        f.write('Start {}\n'.format(to_datetime('now').strftime('%H:%M:%S.%f %A %B %d %Y ')))
+        f.write('Start {}\n'.format(to_datetime('now').strftime('%X')))
     else:
         f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), "a")
-        f.write('Start {}\n'.format(to_datetime('now').strftime('%H:%M:%S.%f %A %B %d %Y ')))
+        f.write('Start {}\n'.format(to_datetime('now')))
     # Determine time difference from start
     tdelta = stop_time - start_time
     info_header = '  {} {}'.format(note, title)
-    run_info = '      Elapsed time:{} '.format(tdelta)
+    run_info = '      Elapsed time:{} '.format(tdelta.seconds)
     f.write('{}\n{}\n'.format(info_header, run_info))
     f.close()
 
 
 def read_worksheet_data_from_csv(current_worksheet_title, configs):
-    ## TODO read_worksheet_data_from_csv not tested. Pickle the output
+    # TODO read_worksheet_data_from_csv not tested. Pickle the output?
     worksheet_name_output_dir = get_worksheet_name_output_dir(current_worksheet_title, configs)
     data_file = os.path.join(worksheet_name_output_dir, 'data.csv')
     # Open and read csv dump from 'write_worksheet_data_to_csv'
@@ -1318,11 +1203,12 @@ def read_worksheet_data_from_csv(current_worksheet_title, configs):
 
 def print_et (text_color, start_time, title, note, configs):
 
-    stop_time = to_datetime('now')
+    stop_time = datetime.now()
     tdelta = stop_time - start_time
+    tdelta = tdelta.seconds
     tdelta_colored = colored(tdelta, text_color, 'on_grey')
     c_note = colored(note, color=text_color)
-    print('   {} ET. {} present date/time:{}'.format(tdelta_colored, c_note, stop_time))
+    print('   {} seconds ET. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time))
     write_run_info_to_file(start_time, stop_time, title, note, configs)
 
 
@@ -1368,11 +1254,10 @@ def combine_gtfs_feeds(worksheets, configs):
 def combine_files(worksheets, configs):
     '''
     Combine individual GTFS files gnerated from worksheets.
+        module 'fileinput'
     :param worksheets: List of processed worksheets
     :return:
     '''
-
-    import fileinput
 
     gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes','shapes',
                  'stop_times','stops','trips']
@@ -1446,6 +1331,20 @@ def run_schedule_viewer(configs):
     subprocess.run(['schedule_viewer.py','{}'.format(gtfs_zip)])
 
 
+def list_google_worksheets_by_workbook(configs, defaults):
+    # Assemble a dictionary of workbooks and worksheets for a report.
+    workbooks = []
+    workbooks = configs.google_workbook_names.split(',')
+    worksheet_dict = {}
+    for workbook in workbooks:
+        route_workbook = open_google_workbook(workbook, defaults, configs)
+        worksheets = route_workbook.worksheets()
+        for worksheet in worksheets:
+            worksheet_dict.setdefault(workbook, []).append(worksheet.title)
+    print(worksheet_dict)
+
+
+
 def main (argv=None):
     # Display the the system path, Python version, and platform that is running.
     print(sys.path)
@@ -1504,10 +1403,9 @@ def main (argv=None):
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             # Call the test function
 
-            # get_excel_worksheet_data(row_list, worksheet)
-            service_id = '?'
-            worksheet_title = 'test_worksheet'
-            write_calendar_dates_file(service_id, worksheet_title, configs)
+            # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
+
+            list_google_worksheets_by_workbook(configs, defaults)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:
@@ -1523,11 +1421,12 @@ def main (argv=None):
             for workbook in workbooks:
 
                 note = '{}'.format('{}\nStart processing {} workbook {}.'.format(\
-                        start_time.strftime('%H:%M:%S.%f %A %B %d %Y '), configs.agency_id, workbook))
+                        start_time, configs.agency_id, workbook))
                 c_note = colored(note,color='green',on_color='on_grey')
                 print(c_note)
                 print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
-                print(colored('Workbook:{}'.format(workbook)))
+                print('Workbook:{}'.format(workbook))
+
                 route_workbook = open_google_workbook(workbook, defaults, configs)
                 worksheets = route_workbook.worksheets()
                 # print('worksheets:{}'.format(worksheets))
@@ -1588,7 +1487,7 @@ def main (argv=None):
                             # TODO Add get_stop_times_rows as a function.
                             # Get stop_times rows.
                             note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='Start worksheet data retrieval.', note=note,
+                            print_et(text_color='green', start_time=start_time, title='>>> Start worksheet data retrieval. <<<', note=note,
                                      configs=configs)
 
                             if configs.source_type == 'google':
@@ -1662,6 +1561,7 @@ def main (argv=None):
 
                             # Write_shapes.txt processing
                             write_shapes_header(worksheet_title=current_worksheet_title, configs=configs)
+                            print('****** From main - write_shapes_header: current_worksheet_title:{}'.format(current_worksheet_title))
                             shapeID     = ws_data[1][25]
                             print('shapeID:{}'.format(shapeID))
                             write_shape_from_kml(shapeID=shapeID, title=current_worksheet_title, configs=configs)
@@ -1685,6 +1585,10 @@ def main (argv=None):
                             filename = current_worksheet_title
                             run_validator(folder_path, filename, configs)
 
+                            note = '{}  {}{}  {}'.format(20 * '>', current_worksheet_title, ' complete. ', 20 * '<')
+                            print_et(text_color='green', start_time=start_time, title='Complete. {}.'.format(current_worksheet_title),
+                                     note=note, configs=configs)
+
                             # Add worksheet title to list of processed worksheets for merge function
                             p_sheets.append(current_worksheet_title)
 
@@ -1699,8 +1603,6 @@ def main (argv=None):
 
                 print_et(text_color='red', start_time=start_time, title='Finished processing.\n', note='END',
                          configs=configs)
-
-
 
         elif (configs.demo is True):
             print("Demo")
