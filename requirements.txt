@@ -1,7 +1,7 @@
 colorama==0.3.6
 geopy==1.11.0
 gspread==0.3.0
--e git+git@bitbucket.org:gtfsdevttools/gtfsgen.git@64649f4471c2643034bee9b427b2f7205a1763a2#egg=gtfsgenerator
+-e git+git@bitbucket.org:gtfsdevttools/gtfsgen.git@4e112ce7886ba0e1ca5ebfa62c294c4f68ca1dd8#egg=gtfsgenerator
 httplib2==0.9.2
 numpy==1.10.4
 oauth2client==1.5.2

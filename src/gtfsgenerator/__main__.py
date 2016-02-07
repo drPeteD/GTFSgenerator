@@ -42,11 +42,13 @@ from oauth2client import tools
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 from pandas import to_datetime
+import pandas as pd
 from pandas import read_excel
 from termcolor import colored
 from veryprettytable import VeryPrettyTable
 
 from gtfsgenerator.Configuration import Configuration
+from gtfsgenerator.GTFS import GtfsHeader
 from gtfsgenerator.GtfsCalendar import ServiceExceptions
 
 
@@ -584,7 +586,12 @@ def write_calendar_file(worksheet_title, worksheet, configs):
         write_exception_file(exception, worksheet_title, configs)
 
     # Placeholders for feed dates in spreadsheet are ignored.
-    start_date  = configs.feed_start_date
+    if configs.feed_start_date:
+        start_date  = configs.feed_start_date
+    else:
+        # TODO Coordinate this start date with GtfsCalendar start date.
+        start_date = pd.datetime.today().strftime('%Y%m%d')
+
     end_date    = configs.feed_end_date
 
     calendar_info = '{},{},{},{},{},{},{},{},{},{}\n'.format(service_id, monday, tuesday,
@@ -1167,21 +1174,19 @@ def write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs):
 def write_run_info_to_file(start_time, stop_time, title, note, configs):
     # Open and append to  existing file
     print('from write_run_info_to_file\n filename:{}\n start_time:{} stop_time:{}'.format\
-              (os.path.join(configs.stats_file_path, configs.stats_filename),start_time, stop_time))
-    if not os.path.exists(os.path.expanduser(configs.stats_file_path)):
-        os.makedirs(os.path.dirname(os.path.expanduser(configs.stats_file_path))) # make directory from full path
-        print(colored('  >>> Created directory:{} <<<'.format\
-                          (os.path.dirname(os.path.expanduser(configs.stats_file_path))),color='green'))
-    if not (os.path.isfile(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename))):
-        print(colored('{} does not exist, creating {}'.format\
-                          (os.path.expanduser(configs.stats_filename), \
-                           os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename)), \
-                      color='red'))
-        f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), 'w')
-        f.write('Start {}\n'.format(to_datetime('now').strftime('%X')))
-    else:
-        f = open(os.path.join(os.path.expanduser(configs.stats_file_path), configs.stats_filename), "a")
+              (os.path.join(configs.report_path, configs.stats_filename),start_time, stop_time))
+    if  os.path.exists(os.path.expanduser(configs.report_path)):
+        f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), "a")
         f.write('Start {}\n'.format(to_datetime('now')))
+    else:
+        print(colored('{} does not exist, creating {}'.format\
+                          (os.path.expanduser(configs.report_path), \
+                           os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename)), \
+                      color='red'))
+        os.makedirs(os.path.expanduser(configs.report_path)) # make directory from full path in config file
+        f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), 'w')
+        f.write('Start {}\n'.format(to_datetime('now').strftime('%X')))
+
     # Determine time difference from start
     tdelta = stop_time - start_time
     info_header = '  {} {}'.format(note, title)
@@ -1208,7 +1213,7 @@ def print_et (text_color, start_time, title, note, configs):
     tdelta = tdelta.seconds
     tdelta_colored = colored(tdelta, text_color, 'on_grey')
     c_note = colored(note, color=text_color)
-    print('   {} seconds ET. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time))
+    print('   {} seconds ET. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time.strftime('%c')))
     write_run_info_to_file(start_time, stop_time, title, note, configs)
 
 
@@ -1331,9 +1336,8 @@ def run_schedule_viewer(configs):
     subprocess.run(['schedule_viewer.py','{}'.format(gtfs_zip)])
 
 
-def list_google_worksheets_by_workbook(configs, defaults):
+def google_worksheets_by_workbook_to_dict(configs, defaults):
     # Assemble a dictionary of workbooks and worksheets for a report.
-    workbooks = []
     workbooks = configs.google_workbook_names.split(',')
     worksheet_dict = {}
     for workbook in workbooks:
@@ -1341,7 +1345,17 @@ def list_google_worksheets_by_workbook(configs, defaults):
         worksheets = route_workbook.worksheets()
         for worksheet in worksheets:
             worksheet_dict.setdefault(workbook, []).append(worksheet.title)
-    print(worksheet_dict)
+    return worksheet_dict
+
+
+def write_workbook_dictionary(workbook_dictionary, configs):
+    print('Number of workbooks:{} {}'.format(len(workbook_dictionary), workbook_dictionary.keys()))
+    f = open(os.path.join(os.path.expanduser(configs.report_path), configs.worksheet_list), 'w')
+    for key, value in workbook_dictionary.items():
+        print('Workbook {} has {} worksheets.'.format(key, len(workbook_dictionary[key])))
+        print('   Key:{}  Value:{}'.format(key, value))
+        f.write('{} has {} worksheets.\n{}\n'.format(key, len(value), value))
+    f.close()
 
 
 
@@ -1405,14 +1419,17 @@ def main (argv=None):
 
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
 
-            list_google_worksheets_by_workbook(configs, defaults)
+            wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
+            print('Workbooks')
+            write_workbook_dictionary(wrkbk_dict, configs)
+
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:
 
             # <<<<<<<<<< Generate Generate Generate Generate Generate >>>>>>>>>>
 
-            start_time = datetime.now()
+            start_time = datetime.now().strftime('%c')
             print("generating...\n")
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
             workbooks = []
@@ -1597,7 +1614,10 @@ def main (argv=None):
                 note = '{}'.format('')
                 print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
                 combine_gtfs_feeds(worksheets=p_sheets, configs=configs)
-
+                # Run validator on combined feeds
+                folder_path = ''
+                filename    = configs.agency_id
+                run_validator(folder_path, filename, configs)
                 # Startup the schedule_viewer with the master GTFS.zip
                 # run_schedule_viewer(configs)
 
