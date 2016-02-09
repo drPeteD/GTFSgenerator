@@ -242,10 +242,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
 
     # TODO Add a progress bar
 
-    # Outer loop through trips. Trip column start in 27 in worksheet, ends with column: columns[-1]
-
-    # Length of columns comes from
-
+    # Outer loop (by columns) through trips. Trip column start in 27 in worksheet, ends with column: columns[-1]
 
     for j in range(27, int(columns[-1])):
 
@@ -254,11 +251,12 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
 
         # Create a trip.txt entry
         write_trips_file(trip_id, worksheet_title=worksheet_name_output_dir, worksheet=worksheet, configs=configs)
-
+        # Trip counter
         trip_count += 1
+
         trip_start_check = False
 
-        # Inner loop through stop lists (each stop row is a list inside a list)
+        # Inner loop (by rows) through stops.
 
         for i in range(3, len(rows)):
 
@@ -282,7 +280,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
                 # Check to see if the first station if a time point. Flag each trip
                 # The try/exception will catch no time entry.
                 departure_time = worksheet[i][j]
-                if trip_start_check == False:  # The first time point has not been found
+                if trip_start_check is False:  # The first time point has not been found
 
                     # c_note = colored('First station is a time point; value:{}.'.format(value),color='green')
                     # print(c_note)
@@ -814,11 +812,11 @@ def write_fare_attributes_file(worksheet_title, configs):
 
 
 def create_exceptions_file(current_worksheet_title, configs):
-    # Clear exceptions file with over write
+
     worksheet_name_output_dir = get_worksheet_name_output_dir(current_worksheet_title, configs)
     exception_file = os.path.join(os.path.expanduser(configs.report_path), 'exceptions.txt')
     # Overwrite existing file
-    f = open(exception_file, "w+")
+    f = open(exception_file, "w")
     f.write('Worksheet:{}\n'.format(current_worksheet_title))
     f.close()
 
@@ -1349,14 +1347,15 @@ def google_worksheets_by_workbook_to_dict(configs, defaults):
 
 
 def write_workbook_dictionary(workbook_dictionary, configs):
-    print('Number of workbooks:{} {}'.format(len(workbook_dictionary), workbook_dictionary.keys()))
     f = open(os.path.join(os.path.expanduser(configs.report_path), configs.worksheet_list), 'w')
+    print('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary)))
+    f.write('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary.keys())))
     for key, value in workbook_dictionary.items():
-        print('Workbook {} has {} worksheets.'.format(key, len(workbook_dictionary[key])))
-        print('   Key:{}  Value:{}'.format(key, value))
-        f.write('{} has {} worksheets.\n{}\n'.format(key, len(value), value))
+        print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
+        f.write('\nWorkbook {} has {} worksheets.'.format(key, len(workbook_dictionary[key])))
+        print('{}'.format(value))
+        f.write('{}'.format(value))
     f.close()
-
 
 
 def main (argv=None):
@@ -1420,7 +1419,6 @@ def main (argv=None):
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
 
             wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
-            print('Workbooks')
             write_workbook_dictionary(wrkbk_dict, configs)
 
 
@@ -1429,10 +1427,13 @@ def main (argv=None):
 
             # <<<<<<<<<< Generate Generate Generate Generate Generate >>>>>>>>>>
 
-            start_time = datetime.now().strftime('%c')
+            start_time = datetime.now()
             print("generating...\n")
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
-            workbooks = []
+            # List all workbooks and worksheets to text file.
+            wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
+            write_workbook_dictionary(wrkbk_dict, configs)
+
             workbooks = configs.google_workbook_names.split(',')
 
             for workbook in workbooks:

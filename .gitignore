@@ -9,6 +9,8 @@
 
 # User-specific stuff:
 /.gitignore
+/test/hat
+/test/krt
 # .idea/workspace.xml
 # .idea/tasks.xml
 # .idea/dictionaries
