@@ -215,14 +215,14 @@ def create_worksheet_name_output_dir(worksheet_title, configs):
         print('Existing directory {}'.format(worksheet_name_output_dir))
 
 
-def print_stops_table(stops):
-    x = VeryPrettyTable()
-    x.field_names = ['stop_id', 'stop_code', 'stop_name', 'stop_desc', 'stop_lat', 'stop_lon', 'zone_id', 'stop_url',
-                     'location_type', 'parent_station', 'stop_timezone', 'wheelchair_boarding']
-    for i in range(0, len(stops) + 1):
-        x.add_row(stops[i])
-    print(x)
-    print('Length of stops:{}'.format(len(stops)))
+# def print_stops_table(stops):
+#     x = VeryPrettyTable()
+#     x.field_names = ['stop_id', 'stop_code', 'stop_name', 'stop_desc', 'stop_lat', 'stop_lon', 'zone_id', 'stop_url',
+#                      'location_type', 'parent_station', 'stop_timezone', 'wheelchair_boarding']
+#     for i in range(0, len(stops) + 1):
+#         x.add_row(stops[i])
+#     print(x)
+#     print('Length of stops:{}'.format(len(stops)))
 
 
 def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, configs):
@@ -319,7 +319,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
             value = []
             for col in range(22, 26):
                 try:
-                    if worksheet[i][col] is None:
+                    if not worksheet[i][col]:
                         value.append('')
                     else:
                         value.append(worksheet[i][col])
@@ -332,22 +332,21 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
             distance_traveled = '{}'.format(value[3])
 
             # TODO Determine distance from previous stop
-
             # TODO Check that end stop in a trip has a time.
 
             # Required: trip_id, existing stop_id, stop_id, stop_sequence
-            # Check that all the fields exist.
-            if (trip_id is not None and stop_id is not None and stop_sequence is not None):
+            # Check that the fields exist.
+            if ( trip_id and stop_id and stop_sequence):
                 # Check that the stop_id exists in stops.
-                search = stop_id
+
                 for stop in range(0, len(stops)):
-                    if stops[stop][0] == search:
+                    if stops[stop][0] == stop_id:
 
                         stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
                                                                              distance_traveled)
                         stop_time_data.append('{}\n'.format(stop_time_line))
 
-                        if trip_id is not None and arrival_time is not None and departure_time is not None and stop_id is not None and stop_sequence is not None:
+                        if not trip_id or not arrival_time or not departure_time or not stop_id or stop_sequence:
                             exception = 'Stop time value missingline i:{} stop:{} {},{},{},{},{} '.format(i, stops[stop],trip_id, arrival_time, departure_time, stop_id, stop_sequence)
                             write_exception_file(exception, worksheet_title, configs)
 
@@ -368,7 +367,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
 
     print('Writing stop_times data...')
 
-    # Open and overwrite existing file
+    # Open and write to existing file
     gtfs_file = os.path.join(worksheet_name_output_dir, 'stop_times.txt')
     f = open(gtfs_file, "a+")
     f.write(''.join(stop_time_data))
@@ -465,8 +464,7 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
     :return None
     """
     # Keep a stops list of all stops in memory for stop_times stop_id check.
-    stop        = ''
-    ws_stops    = []
+    stop_list = []
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
 
@@ -493,18 +491,16 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
             print(c_exception)
             continue
 
-
-        cnt = 0
         value = []
+        # k: rows 10 to 21 contain stop information
         for k in range(10, 21):
             try:
-                if worksheet[i][k] is None:
-                    value.append('')
-                else:
+                if worksheet[i][k]:
                     value.append(worksheet[i][k])
+                else:
+                    value.append('')
             except IndexError:
                 value.append('')
-            cnt += 1
 
         # Assign values to gtfs variables
         stop_code = value[0]
@@ -519,35 +515,34 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
         stop_timezone = value[9]
         wheelchair_boarding = value[10]
 
-        if stop_id is None or stop_name is None or stop_lat is None or stop_lon is None:
+        stop_list = []
+        if stop_id and stop_name and stop_lat and stop_lon:
+
+            stop = ('{},{},{},{},{},{},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding))
+
+            # Add stop to stops list
+            if stop in stop_list:
+                exception = 'Duplicate stop:{}'.format(stop)
+                write_exception_file(exception, worksheet_title, configs)
+                print(exception)
+            else:
+                stop_list.append(stop) # NOT APPENDING
+                print(stop_list)
+                c_stop_line = colored(stop, color='blue', on_color='on_white')
+                print('write_stops --> stop_line:{}'.format(c_stop_line))
+        else:
             # If any required value is empty write exception and continue loop
             exception = 'Required value missing. stop line i:{} stop_id:{} stop_name:{} stop_lat:{} stop_lon{}'.format(i, stop_id, stop_name, stop_lat, stop_lon)
             write_exception_file(exception, worksheet_title, configs)
-
-        # Check to see if the stop was previously defined in worksheet.
-        print('stop pre-check: id:{} name:{} lat:{} lon:{}'.format(stop_id, stop_name, stop_lat, stop_lon))
-        # if stop_id not in stop:
-
-        # Add stop to stops list for later merge
-        stop = stop.split(',')
-        ws_stops.append(stop)
-
-        stop = ('{},{},{},{},{},{},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding))
-
-        c_stop_line = colored(stop, color='blue', on_color='on_white')
-        print('write_stops --> stop_line:{}'.format(c_stop_line))
-
-        # Open file for append
-        gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
-        f = open(gtfs_file, "a+")
+    print('STOP LIST >>>>>>{}'.format( stop_list ))
+    # Write stop_list
+    gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
+    f = open(gtfs_file, "a+")
+    for stop in stop_list:
         f.write('{}\n'.format(stop))
-        f.close()
+    f.close()
 
-        # else: # Write exception
-        #     exception = 'Stop_id in stop. i:{} stop_id:{} stop_name:{} stop_lat:{} stop_lon{}'.format(i, stop_id, stop_name, stop_lat, stop_lon)
-        #     write_exception_file(exception, worksheet_title, configs)
-
-    return ws_stops
+    return stop_list
 
 
 def write_calendar_file(worksheet_title, worksheet, configs):
