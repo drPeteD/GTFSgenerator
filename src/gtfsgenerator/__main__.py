@@ -49,6 +49,7 @@ from veryprettytable import VeryPrettyTable
 
 from gtfsgenerator.Configuration import Configuration
 from gtfsgenerator.GTFS import GtfsHeader
+# from gtfsgenerator.GTFS import GtfsWrite
 from gtfsgenerator.GtfsCalendar import ServiceExceptions
 
 
@@ -215,16 +216,6 @@ def create_worksheet_name_output_dir(worksheet_title, configs):
         print('Existing directory {}'.format(worksheet_name_output_dir))
 
 
-# def print_stops_table(stops):
-#     x = VeryPrettyTable()
-#     x.field_names = ['stop_id', 'stop_code', 'stop_name', 'stop_desc', 'stop_lat', 'stop_lon', 'zone_id', 'stop_url',
-#                      'location_type', 'parent_station', 'stop_timezone', 'wheelchair_boarding']
-#     for i in range(0, len(stops) + 1):
-#         x.add_row(stops[i])
-#     print(x)
-#     print('Length of stops:{}'.format(len(stops)))
-
-
 def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, configs):
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
@@ -233,147 +224,128 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
     x = GtfsHeader()
     x.write_header('stop_times', worksheet_name_output_dir)
 
-    # Define the number of row and column lists.
-    route_type = worksheet[1][14]
+    # If the route_type is a bus (route_type 3) then departure and arrival times are identical.
+    # Not used here, but if other than a bus route - arrival != departure time.
+    if worksheet[2][14]:
+        route_type = worksheet[2][14]
+    else:
+        route_type = configs.default_route_type
+    # Setup stop_time list.
     stop_time_data = []
-
-    # Setup write loop. Increment trip_id every iteration.
+    # Setup loop counter.
     trip_count = 0
 
-    # TODO Add a progress bar
-
     # Outer loop (by columns) through trips. Trip column start in 27 in worksheet, ends with column: columns[-1]
-
     for j in range(27, int(columns[-1])):
 
         # Build trip_id from trip_id plus time header.
         trip_id = '{}-{}'.format(worksheet[1][20], worksheet[2][j])
-
         # Create a trip.txt entry
         write_trips_file(trip_id, worksheet_title=worksheet_name_output_dir, worksheet=worksheet, configs=configs)
-        # Trip counter
         trip_count += 1
-
+        # Begining of trip loop, set check to False.
         trip_start_check = False
 
-        # Inner loop (by rows) through stops.
-
+        # Inner loop by row through stops.
         for i in range(3, len(rows)):
 
-            # Departure time to empty
+            # Set departure time to empty.
             departure_time = ''
 
             # Try if time entry exists.
             # If exist; check for time (first digit is numeric), if not, skip it.
             #      Use the first character of the time value to test.
 
-            try:  # out of range if no loc_type AND not a time stop
+            loc_type = worksheet[i][17]
+            # If stop is a station (location_type = 1) skip it. Get location type from worksheet.
+            if loc_type == '1':
+                continue  # Skip the station.
 
-                # print('Route type: {} Location type:{}'.format(route_type, loc_type))
-                # print('Trip count:{} Trip start check:{} Location type:{}'.format(trip_count, trip_start_check, loc_type))
+            # Is this a time point?
+            if worksheet[i][j]:
+                # Ensure standard time is properly formatted.
+                # first two characters 00-23
+                if int(worksheet[i][j])[:1] < 23:
+                    # TODO Handle time past midnight. GTFS allows for out of range time, e.g. 24:03:00.
+                    departure_time  = pd.Timestamp(worksheet[i][j])
+                    departure_time  = departure_time.strftime('%H:%M:%S')
+                arrival_time    = departure_time
+                if trip_start_check is False:
+                    trip_start_check = True
+            else:
+                departure_time  = ''
+                arrival_time    = ''
 
-                # If stop is a station (location_type = 1) skip it. Get location type from worksheet.
-                loc_type = worksheet[i][17]
-                if loc_type == '1':
-                    continue  # Skip the station.
-
-                # Check to see if the first station if a time point. Flag each trip
-                # The try/exception will catch no time entry.
-                departure_time = worksheet[i][j]
-                if trip_start_check is False:  # The first time point has not been found
-
-                    # c_note = colored('First station is a time point; value:{}.'.format(value),color='green')
-                    # print(c_note)
-
-                    check_if_time = worksheet[i][j]
-                    check_if_time = check_if_time[:1]
-                    if check_if_time.isdigit():
-
-                        # c_note = colored('First station has an arrival time and is a bus route; value:{}.'.format(value),color='green')
-                        # print(c_note)
-                        trip_start_check = True
-                        departure_time = worksheet[i][j]
-                    else:
-                        # Continue to next row
-                        continue
-                else:  # The first time point was found. Others are time points.
-                    stop_sequence = '{}'.format(worksheet[i][2])
-                    stop_id = '{}'.format(worksheet[i][3])
-            except IndexError:
-                if trip_start_check == True:  # Keep processing if time is empty (out of range)
-                    pass
-                else:  # If no time in first value, next value in next row
-                    continue
+        #     # Check to see if the first station if a time point. Flag each trip
+        #     # The try/exception will catch no time entry.
+        #     if trip_start_check is False:  # The first time point has not been found
+        #         # c_note = colored('First station is a time point; value:{}.'.format(value),color='green')
+        #         # print(c_note)
+        #         check_if_time = worksheet[i][j]
+        #         check_if_time = check_if_time[:1]
+        #         if check_if_time.isdigit():
+        #             # c_note = colored('First station has an arrival time and is a bus route; value:{}.'.format(value),color='green')
+        #             # print(c_note)
+        #             trip_start_check = True
+        #             departure_time = worksheet[i][j]
+        #         else:
+        #             # Continue to next row
+        #             continue
+        #     else:  # The first time point was found. Others are time points.
+        #         stop_sequence = '{}'.format(worksheet[i][2])
+        #         stop_id = '{}'.format(worksheet[i][3])
+        # except IndexError:
+        #     if trip_start_check == True:  # Keep processing if time is empty (out of range)
+        #         pass
+        #     else:  # If no time in first value, next value in next row
+        #         continue
 
             # Collect all stop_time.txt values
             stop_sequence = '{}'.format(worksheet[i][2])
             stop_id = '{}'.format(worksheet[i][3])
-
-            # If the route_type is a bus (route_type 3) then departure and arrival times are identical.
-            # Not used here, but if other than a bus route - arrival != departure time.
-            # route_type = worksheet[2][14]
-
-            arrival_time = departure_time
-
-            # Get the rest of the stop_time values. Value will be out of range if empty
-            value = []
-            for col in range(22, 26):
-                try:
-                    if not worksheet[i][col]:
-                        value.append('')
-                    else:
-                        value.append(worksheet[i][col])
-                except IndexError:
-                    value.append('')
-
-            stop_headsign = '{}'.format(value[0])
-            pickup_type = '{}'.format(value[1])
-            drop_off_type = '{}'.format(value[2])
-            distance_traveled = '{}'.format(value[3])
+            stop_headsign = worksheet[i][22]
+            pickup_type = worksheet[i][23]
+            drop_off_type = worksheet[i][24]
+            distance_traveled =  worksheet[i][25]
 
             # TODO Determine distance from previous stop
             # TODO Check that end stop in a trip has a time.
 
             # Required: trip_id, existing stop_id, stop_id, stop_sequence
             # Check that the fields exist.
-            if ( trip_id and stop_id and stop_sequence):
-                # Check that the stop_id exists in stops.
+            # if trip_id and stop_id and stop_sequence:
+            #     # Check that the stop_id exists in stops.
+            #     for k in range(0, len(stops)):
+            #         if stop_id in stops[0][k]:
 
-                for stop in range(0, len(stops)):
-                    if stops[stop][0] == stop_id:
-
-                        stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
-                                                                             distance_traveled)
-                        stop_time_data.append('{}\n'.format(stop_time_line))
-
-                        if not trip_id or not arrival_time or not departure_time or not stop_id or stop_sequence:
-                            exception = 'Stop time value missingline i:{} stop:{} {},{},{},{},{} '.format(i, stops[stop],trip_id, arrival_time, departure_time, stop_id, stop_sequence)
-                            write_exception_file(exception, worksheet_title, configs)
-
-                        # Print the time points
-                        # if arrival_time:
-                        #     print("Time point --> i:{} j:{} with time:{} stop_id:{} seq#:{} startCheck:{}".format(i, j, departure_time, stop_id, stop_sequence, trip_start_check))
-
+            # If trip start is False, then a time point has not been processed. Skip to netx row.
+            if trip_start_check is True:
+                stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
+                                                                     distance_traveled)
+                stop_time_data.append('{}\n'.format(stop_time_line))
             else:
-                # If stop_id is not in the stop.txt list, then skip it.
-                exception = 'stop_id is not in stops list. trip line i:{} stop:{}'.format(i, stops[stop_sequence])
-                write_exception_file(exception, worksheet_title, configs)
                 continue
+                    # else:
+                    #     # If stop_id is not in the stop.txt list, then skip it.
+                    #     exception = 'stop_id is not in stops list. trip {}, line i = {} stop_id = {}'.format(trip_id, i, stop_id )
+                    #     write_exception_file(exception, worksheet_title, configs)
+                    # else:
+                    #     if not trip_id:
+                    #         exception = 'Missing trip_id. i = {}, stop_id = {}'.format(i, stop_id)
+                    #     elif not stop_id:
+                    #         exception = 'Missing stop_id. i = {}, trip_id = {}'.format(i, trip_id)
+                    #     elif not stop_sequence:
+                    #         exception = 'Missing stop sequence. i = {} trip_id = {} stop_id = {}'.format(i, trip_id, stop_id)
+                    #         write_exception_file(exception, worksheet_title, configs)
 
-                        # color_trip_line = colored(stop_time_line, color='red', on_color='on_white'
-                        # print('write_stop_times -->\n   {}\n'.format(color_trip_line))
-
-    # Join the new list to existing list
-
+    # Open and append to file stop_times.txt
     print('Writing stop_times data...')
-
-    # Open and write to existing file
     gtfs_file = os.path.join(worksheet_name_output_dir, 'stop_times.txt')
-    f = open(gtfs_file, "a+")
-    f.write(''.join(stop_time_data))
+    f = open(gtfs_file, "a")
+    for stop_time in stop_time_data:
+        f.write(stop_time)
     f.close()
-
-    print('Finished stop_times.txt, trips:{}.'.format(trip_count))
+    print('Finished stop_times.txt, {} trips.'.format(trip_count))
 
     return
 
@@ -431,6 +403,7 @@ def write_trips_file(trip_id, worksheet_title, worksheet, configs):
     trip_line = '{},{},{},{},{},{},{},{},{},{}'.format(route_id, service_id, trip_id, trip_headsign,
                                                        trip_short_name, direction_id, block_id, shape_id,
                                                        wheelchair_acesible, bikes_allowed)
+    print(colored(trip_line, color='green', on_color='on_white'))
 
     if route_id is not None and service_id is not None and trip_id is not None:
     # If any required value is empty write exception and continue loop
@@ -473,69 +446,53 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
     x.write_header('stops', worksheet_name_output_dir)
 
     # Iterate across the valid rows. The worksheet data has 4 [rows] of static data.
+    stop_list = []
     for i in range(3, len(rows)):
 
         # Required. Something must exist in the worksheet row to have been flagged.
         # Check to ensure a valid stop; must have stop_id, stop_name, stop_lat, stop_lon
         try:
+            # Required
             stop_id     = worksheet[i][3]
             stop_name   = worksheet[i][11]
             stop_lat    = worksheet[i][13]
             stop_lon    = worksheet[i][14]
+            # Optional
+            stop_code   = worksheet[i][10]
+            stop_desc   = worksheet[i][12]
+            zone_id     = worksheet[i][15]
+            stop_url    = worksheet[i][16]
+            loc_type    = worksheet[i][17]
+            parent      = worksheet[i][18]
+            timezone    = worksheet[i][19]
+            wheel_board = worksheet[i][20]
 
         except IndexError:
             # Catch Out of Range error and write exception
             exception = 'IndexError. stop row i:{}'.format(i)
             write_exception_file(exception, worksheet_title, configs)
-            c_exception = colored(exception, color='red')
-            print(c_exception)
+            print(colored(exception, color='red'))
             continue
 
-        value = []
-        # k: rows 10 to 21 contain stop information
-        for k in range(10, 21):
-            try:
-                if worksheet[i][k]:
-                    value.append(worksheet[i][k])
-                else:
-                    value.append('')
-            except IndexError:
-                value.append('')
-
-        # Assign values to gtfs variables
-        stop_code = value[0]
-        stop_name = value[1]
-        stop_desc = value[2]
-        stop_lat = value[3]
-        stop_lon = value[4]
-        zone_id = value[5]
-        stop_url = value[6]
-        location_type = value[7]
-        parent_station = value[8]
-        stop_timezone = value[9]
-        wheelchair_boarding = value[10]
-
-        stop_list = []
         if stop_id and stop_name and stop_lat and stop_lon:
+            # Format stop line output
+            stop = ('{},{},{},{},{},{},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, loc_type, parent, timezone, wheel_board))
 
-            stop = ('{},{},{},{},{},{},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding))
-
-            # Add stop to stops list
+            # Check to see if stop exists, write to exception if true.
             if stop in stop_list:
-                exception = 'Duplicate stop:{}'.format(stop)
+                exception = 'Duplicate stop row {} :{}'.format(i, stop)
                 write_exception_file(exception, worksheet_title, configs)
-                print(exception)
+                print(colored(exception))
+            # Write to stop_list if it does not exist. Print the stop to console.
             else:
-                stop_list.append(stop) # NOT APPENDING
-                print(stop_list)
-                c_stop_line = colored(stop, color='blue', on_color='on_white')
-                print('write_stops --> stop_line:{}'.format(c_stop_line))
+                stop_list.append(stop)
+                print(colored('writing_stop --> stop_line:{}'.format(stop), color='blue', on_color='on_white'))
         else:
             # If any required value is empty write exception and continue loop
             exception = 'Required value missing. stop line i:{} stop_id:{} stop_name:{} stop_lat:{} stop_lon{}'.format(i, stop_id, stop_name, stop_lat, stop_lon)
             write_exception_file(exception, worksheet_title, configs)
-    print('STOP LIST >>>>>>{}'.format( stop_list ))
-    # Write stop_list
+
+    # Write stop_list to stops.txt
     gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
     f = open(gtfs_file, "a+")
     for stop in stop_list:
@@ -659,27 +616,21 @@ def write_routes_file(worksheet_title, worksheet, configs):
     # File header
     x.write_header('routes', worksheet_name_output_dir)
 
-    # REMEMBER Python counts begin at zero!
-    # Worksheet data is in the third row; retrieved as the second list of row data.
+    # Worksheet data is in the third row; retrieved as the second list of row data, first when count from zero.
     # Address the nested list-static data as list[1] (second list)
 
-    value = []
-    # Collect all trips.txt values
-    for i in range(10, 18):
-        if worksheet[1][i] is not None:
-            value.append(worksheet[1][i])
-        else:
-            value.append('')
-
-    route_id            = value[0]
+    route_id            = worksheet[1][10]
     agency_id           = configs.agency_id
-    route_short_name    = value[1]
-    route_long_name     = value[2]
-    route_desc          = value[3]
-    route_type          = value[4]
-    route_url           = value[5]
-    route_color         = value[6]
-    route_text_color    = value[7]
+    route_short_name    = worksheet[1][11]
+    route_long_name     = worksheet[1][12]
+    route_desc          = worksheet[1][13]
+    if  worksheet[1][14]:
+        route_type      = worksheet[1][14]
+    else:
+        route_type      = '3'
+    route_url           = worksheet[1][15]
+    route_color         = worksheet[1][16]
+    route_text_color    = worksheet[1][17]
 
     route_info = '{},{},{},{},{},{},{},{},{}\n'.format(route_id, agency_id, route_short_name,
                                                        route_long_name, route_desc, route_type, route_url, route_color,
@@ -811,7 +762,7 @@ def create_exceptions_file(current_worksheet_title, configs):
     worksheet_name_output_dir = get_worksheet_name_output_dir(current_worksheet_title, configs)
     exception_file = os.path.join(os.path.expanduser(configs.report_path), 'exceptions.txt')
     # Overwrite existing file
-    f = open(exception_file, "w")
+    f = open(exception_file, "a")
     f.write('Worksheet:{}\n'.format(current_worksheet_title))
     f.close()
 
@@ -884,13 +835,12 @@ def write_shapes_header(worksheet_title, configs):
 def write_shape_from_kml(shapeID, title, configs):
     """
     Function constructs a .kml and .txt filename from the worksheet entry.
-
     If the kml_txt exists, then the text file contains two or more kml entries to be concatenated together into
-        a GTFS shapes.txt file.
+       a GTFS shapes.txt file.
     If the kml_txt does not exist, then the kml_file is processed as a singlton into a GTFS shapes.txt file.
-
-    :param shapeID: The shapeID from worksheet
-    :param configs:
+    :param shapeID: The shapeID from worksheet. No extension!
+    :param title: The spreadsheet title.
+    :param configs: The configuration file object.
     :return:
     """
 
@@ -952,13 +902,10 @@ def write_shape_from_kml(shapeID, title, configs):
 
         # TODO Write KML error to log
 
-    # print('Writing shape.txt from KML.\n  --> kml root:{}\n  -->shapeID:{}\n  -->path:{}'.
-    #       format(configs.kml_files_root, shapeID, tripKML))
-
-    # print("File '{}' processed.\n    with {:,} nodes and a total distance of {:.2f} miles.".
-    #       format(configs.file_list[i], last_sequence_number, accumulated_distance))
-    c_note = colored('{} Completed KML to shape for {}.txt. {}'.format('<' * 5, shapeID, '>' * 5),color='green')
-    print(c_note)
+    # print('Writing shape.txt from KML.\n  --> kml root:{}\n  -->shapeID:{}\n  -->path:{}'.format(configs.kml_files_root, shapeID, tripKML))
+    # print("File '{}' processed.\n    with {:,} nodes and a total distance of {:.2f} miles.".format(configs.file_list[i], last_sequence_number, accumulated_distance))
+    # c_note = colored('{} Completed KML to shape for {}.txt. {}'.format('<' * 5, shapeID, '>' * 5),color='green')
+    # print(c_note)
 
 
 def get_vincenty_distance(point1, point2):
@@ -968,26 +915,25 @@ def get_vincenty_distance(point1, point2):
 
 
 def write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance):
-    # Write each output line in shapes.txt
 
+    # Write each output line in shapes.txt
     f = open(shape_txt_out, 'a')
     line_out = "{}, {:.6f}, {:.6f}, {}, {:.2f}, {:.3f}\n".format \
         (shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
-
+    # print(' shape_txt_out:{}'.format(shape_txt_out))
     # print('  write_shape_line:{}'.format(line_out))
-
     f.write(line_out)
 
 
-def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number,
-                          accumulated_distance):
+def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance):
     # Write the KML line coordinate pairs, sequence number, distance, accumulated distance
     lat1 = 0.0
     lng1 = 0.0
-
+    print("NameElements:{}".format(len(allNameElements)))
     for nameElement in allNameElements:
         # For all the coordinates in the kml line element
         # For the ith coordinate row
+        print("CoordsElements:{}".format(len(allCoordsElements)))
         for i in allCoordsElements:
             # For the jth column in the ith line (lines separated by a blank)
             for j in i.text.split(' '):
@@ -1005,6 +951,7 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
                     point1 = (lat1, lng1)
                     point2 = (lat2, lng2)
                     distance = get_vincenty_distance(point1, point2)
+
                 # Accumulate sequence number
                 last_sequence_number += 1
 
@@ -1012,8 +959,8 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
                 accumulated_distance = distance + accumulated_distance
 
                 # Write the line to the shapes.txt file
-                write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance,
-                                 distance)
+                write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
+
                 # Assign coordinates to previous
                 lat1 = lat2
                 lng1 = lng2
@@ -1346,9 +1293,9 @@ def write_workbook_dictionary(workbook_dictionary, configs):
     print('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary)))
     f.write('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary.keys())))
     for key, value in workbook_dictionary.items():
-        print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
+        # print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
         f.write('\nWorkbook {} has {} worksheets.'.format(key, len(workbook_dictionary[key])))
-        print('{}'.format(value))
+        # print('{}'.format(value))
         f.write('{}'.format(value))
     f.close()
 
@@ -1413,8 +1360,9 @@ def main (argv=None):
 
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
 
-            wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
-            write_workbook_dictionary(wrkbk_dict, configs)
+            shapeID ='21_in_TraceFork_Southridge_local'
+            title = '21_in'
+            write_shape_from_kml(shapeID, title, configs)
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1449,7 +1397,7 @@ def main (argv=None):
 
                 for worksheet in worksheets:
                     sheets.append(worksheet.title)
-                print('sheets:{}'.format(sheets))
+                # print('sheets:{}'.format(sheets))
                 p_sheets   = []
 
                 # Exclude worksheets named Master and Template
@@ -1553,8 +1501,7 @@ def main (argv=None):
 
                             # Stops.txt processing
                             #   Collect stops in memory for later merge.
-                            ws_stops = write_stops_file(worksheet_title=current_worksheet_title, rows=row_list,
-                                                        worksheet=ws_data, configs=configs)
+                            stops_list = write_stops_file(worksheet_title=current_worksheet_title, rows=row_list, worksheet=ws_data, configs=configs)
 
                             note = '{}'.format('')
                             print_et(text_color='green', start_time=start_time, title='Stops processing.', note=note,
@@ -1567,7 +1514,7 @@ def main (argv=None):
                                      configs=configs)
 
                             # Stop times and trips processing
-                            write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=ws_stops, worksheet=ws_data, configs=configs)
+                            write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=stops_list, worksheet=ws_data, configs=configs)
                             note = '{}'.format('')
                             print_et(text_color='green', start_time=start_time, title='Start shapes.txt from kml.',
                                      note=note, configs=configs)
