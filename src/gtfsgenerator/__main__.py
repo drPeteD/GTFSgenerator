@@ -217,7 +217,25 @@ def create_worksheet_name_output_dir(worksheet_title, configs):
 
 
 def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, configs):
+    """
 
+    0 Tram / Light Rail
+    1 Subway / Metro
+    2 Rail
+    3 Bus
+    4 Ferry
+    5 Cable Car
+    6 Gondola
+    7 Funicular
+
+    :param worksheet_title: Tab on worksheet used for folder name.
+    :param rows:
+    :param columns:
+    :param stops: List of stops from previous operation.
+    :param worksheet:
+    :param configs: Configuration object
+    :return:
+    """
     worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
 
     # File header
@@ -230,11 +248,18 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
         route_type = worksheet[2][14]
     else:
         route_type = configs.default_route_type
-    # Setup stop_time list.
+    # Setup and clear stop_time list.
     stop_time_data = []
     # Setup loop counter.
     trip_count = 0
-
+    # Hours before and after midnight
+    before_mid = []
+    after_mid  = []
+    for hour in range(0, 24):
+        before_mid.append('{:02d}'.format(hour))
+    for hour in range(24, 37):
+        after_mid.append('{:02d}'.format(hour))
+    # print('Hours before midnight:{}\nHours after midnight:{}'.format(before_mid, after_mid))
     # Outer loop (by columns) through trips. Trip column start in 27 in worksheet, ends with column: columns[-1]
     for j in range(27, int(columns[-1])):
 
@@ -251,10 +276,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
 
             # Set departure time to empty.
             departure_time = ''
-
-            # Try if time entry exists.
-            # If exist; check for time (first digit is numeric), if not, skip it.
-            #      Use the first character of the time value to test.
+            arrival_time = departure_time
 
             loc_type = worksheet[i][17]
             # If stop is a station (location_type = 1) skip it. Get location type from worksheet.
@@ -263,42 +285,25 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
 
             # Is this a time point?
             if worksheet[i][j]:
-                # Ensure standard time is properly formatted.
-                # first two characters 00-23
-                if int(worksheet[i][j])[:1] < 23:
-                    # TODO Handle time past midnight. GTFS allows for out of range time, e.g. 24:03:00.
+                # first two characters 00-23 for time, non-numberic for pass
+                # TODO Handle time past midnight. GTFS allows for out of range time, e.g. 24:03:00.
+                hour = worksheet[i][j][:2]
+                print('  Hour {}'.format(hour))
+                trip_start_check = True
+                if hour in before_mid:
+                    # Ensure standard time is properly formatted. Convert to Pandas Timestamp then format string.
                     departure_time  = pd.Timestamp(worksheet[i][j])
                     departure_time  = departure_time.strftime('%H:%M:%S')
-                arrival_time    = departure_time
-                if trip_start_check is False:
-                    trip_start_check = True
+                    print(colored('>>Trip start is {}, departure time is {}.'.format(trip_start_check, departure_time), color='blue'))
+                if hour in after_mid:
+                    print('Handle time past midnight.')
+                    departure_time = worksheet[i][j]
+                print(colored("  Departure time is {}".format(departure_time),color='green'))
+                print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
+                arrival_time = departure_time
             else:
                 departure_time  = ''
-                arrival_time    = ''
-
-        #     # Check to see if the first station if a time point. Flag each trip
-        #     # The try/exception will catch no time entry.
-        #     if trip_start_check is False:  # The first time point has not been found
-        #         # c_note = colored('First station is a time point; value:{}.'.format(value),color='green')
-        #         # print(c_note)
-        #         check_if_time = worksheet[i][j]
-        #         check_if_time = check_if_time[:1]
-        #         if check_if_time.isdigit():
-        #             # c_note = colored('First station has an arrival time and is a bus route; value:{}.'.format(value),color='green')
-        #             # print(c_note)
-        #             trip_start_check = True
-        #             departure_time = worksheet[i][j]
-        #         else:
-        #             # Continue to next row
-        #             continue
-        #     else:  # The first time point was found. Others are time points.
-        #         stop_sequence = '{}'.format(worksheet[i][2])
-        #         stop_id = '{}'.format(worksheet[i][3])
-        # except IndexError:
-        #     if trip_start_check == True:  # Keep processing if time is empty (out of range)
-        #         pass
-        #     else:  # If no time in first value, next value in next row
-        #         continue
+                arrival_time    = departure_time
 
             # Collect all stop_time.txt values
             stop_sequence = '{}'.format(worksheet[i][2])
@@ -311,32 +316,11 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
             # TODO Determine distance from previous stop
             # TODO Check that end stop in a trip has a time.
 
-            # Required: trip_id, existing stop_id, stop_id, stop_sequence
-            # Check that the fields exist.
-            # if trip_id and stop_id and stop_sequence:
-            #     # Check that the stop_id exists in stops.
-            #     for k in range(0, len(stops)):
-            #         if stop_id in stops[0][k]:
-
-            # If trip start is False, then a time point has not been processed. Skip to netx row.
+            # If trip start is False, then a time point has not been processed. Skip to next row.
             if trip_start_check is True:
                 stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
                                                                      distance_traveled)
                 stop_time_data.append('{}\n'.format(stop_time_line))
-            else:
-                continue
-                    # else:
-                    #     # If stop_id is not in the stop.txt list, then skip it.
-                    #     exception = 'stop_id is not in stops list. trip {}, line i = {} stop_id = {}'.format(trip_id, i, stop_id )
-                    #     write_exception_file(exception, worksheet_title, configs)
-                    # else:
-                    #     if not trip_id:
-                    #         exception = 'Missing trip_id. i = {}, stop_id = {}'.format(i, stop_id)
-                    #     elif not stop_id:
-                    #         exception = 'Missing stop_id. i = {}, trip_id = {}'.format(i, trip_id)
-                    #     elif not stop_sequence:
-                    #         exception = 'Missing stop sequence. i = {} trip_id = {} stop_id = {}'.format(i, trip_id, stop_id)
-                    #         write_exception_file(exception, worksheet_title, configs)
 
     # Open and append to file stop_times.txt
     print('Writing stop_times data...')
