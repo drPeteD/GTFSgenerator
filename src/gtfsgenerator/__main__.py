@@ -243,22 +243,22 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
     x.write_header('stop_times', worksheet_name_output_dir)
 
     # If the route_type is a bus (route_type 3) then departure and arrival times are identical.
-    # Not used here, but if other than a bus route - arrival != departure time.
+    # If not in spreadsheet, use default from config file.
     if worksheet[2][14]:
         route_type = worksheet[2][14]
     else:
         route_type = configs.default_route_type
+
     # Setup and clear stop_time list.
     stop_time_data = []
     # Setup loop counter.
     trip_count = 0
-    # Hours before and after midnight
-    before_mid = []
-    after_mid  = []
-    for hour in range(0, 24):
-        before_mid.append('{:02d}'.format(hour))
-    for hour in range(24, 37):
-        after_mid.append('{:02d}'.format(hour))
+    # Hours before midnight. Use to correct for single digit times.
+    before_mid = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+    # Hours after midnight. Use to correct for times after midnight of the same day - see GTFS specs.
+    after_mid  = ['0', '00', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36']
+    prev_depart_time = ''
+
     # print('Hours before midnight:{}\nHours after midnight:{}'.format(before_mid, after_mid))
     # Outer loop (by columns) through trips. Trip column start in 27 in worksheet, ends with column: columns[-1]
     for j in range(27, int(columns[-1])):
@@ -270,6 +270,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
         trip_count += 1
         # Begining of trip loop, set check to False.
         trip_start_check = False
+        prev_depart_time = ''
 
         # Inner loop by row through stops.
         for i in range(3, len(rows)):
@@ -281,23 +282,29 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
             loc_type = worksheet[i][17]
             # If stop is a station (location_type = 1) skip it. Get location type from worksheet.
             if loc_type == '1':
-                continue  # Skip the station.
+                continue  # Skip the station, on to the next station.
 
             # Is this a time point?
             if worksheet[i][j]:
-                # first two characters 00-23 for time, non-numberic for pass
-                # TODO Handle time past midnight. GTFS allows for out of range time, e.g. 24:03:00.
-                hour = worksheet[i][j][:2]
-                print('  Hour {}'.format(hour))
+                # Split the time, examin hour.
+                hour = worksheet[i][j].split(':')
+                print('  Hour {}'.format(hour[0]))
                 trip_start_check = True
-                if hour in before_mid:
+                if hour[0] in before_mid:
+                    print(colored('  @@@ previous dep:{}'.format(prev_depart_time),'blue'))
+                    if prev_depart_time[:2] in after_mid:
+                        departure_time = '{}:{}:{}'.format(int(hour[0]) + 24, hour[1], hour[2])
+                        print(colored(' *+> previous dp:{} hour[0]:{} departure time:{}'.format(prev_depart_time[:2], hour[0], departure_time) ))
+                    else:
                     # Ensure standard time is properly formatted. Convert to Pandas Timestamp then format string.
-                    departure_time  = pd.Timestamp(worksheet[i][j])
-                    departure_time  = departure_time.strftime('%H:%M:%S')
+                        departure_time = '{}:{}:{}'.format(int(hour[0]), hour[1], hour[2])
                     print(colored('>>Trip start is {}, departure time is {}.'.format(trip_start_check, departure_time), color='blue'))
-                if hour in after_mid:
-                    print('Handle time past midnight.')
-                    departure_time = worksheet[i][j]
+                if hour[0] in after_mid:
+                    if hour[0] == '0' or hour[0] == '00':
+                        departure_time = '{}:{}:{}'.format('24', hour[1], hour[2])
+                    else:
+                        departure_time = '{}:{}:{}'.format( hour[0], hour[1], hour[2])
+                    print('Handle time past midnight, time is {}.'.format(departure_time))
                 print(colored("  Departure time is {}".format(departure_time),color='green'))
                 print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
                 arrival_time = departure_time
@@ -321,6 +328,9 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
                 stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
                                                                      distance_traveled)
                 stop_time_data.append('{}\n'.format(stop_time_line))
+
+            print(colored(' previous dep:{}, this dep:{}'.format(prev_depart_time, departure_time),'green'))
+            prev_depart_time = departure_time
 
     # Open and append to file stop_times.txt
     print('Writing stop_times data...')
@@ -636,8 +646,19 @@ def write_feed_info_file(worksheet_title, configs):
     x = GtfsHeader()
     x.write_header('feed_info', worksheet_name_output_dir)
 
+    if not configs.feed_start_date:
+        start_date = pd.to_datetime('today')
+    else:
+        start_date = pd.to_datetime(configs.feed_start_date)
+    if pd.Timestamp(configs.feed_end_date) > (pd.Timestamp(start_date) + pd.DateOffset(days=int(configs.delta_max))):
+        end_date = pd.Timestamp(start_date) + pd.DateOffset(configs.delta_max)
+    else:
+        end_date = pd.Timestamp(configs.feed_end_date)
+    start_date  = start_date.strftime('%Y%m%d')
+    end_date    = end_date.strftime('%Y%m%d')
+
     feed_info = '{},{},{},{},{},{}\n'.format(configs.feed_publisher_name, configs.feed_publisher_url, configs.feed_lang,
-                                             configs.feed_start_date, configs.feed_end_date, configs.feed_version)
+                                             start_date, end_date, configs.feed_version)
 
     print('Writting feed_info.txt to {}'.format(worksheet_name_output_dir))
 
@@ -835,8 +856,6 @@ def write_shape_from_kml(shapeID, title, configs):
 
     print('  Looking for KML file or list: {} from worksheet:{} in path\n   KML {}\n   TXT {}'.format(shapeID, title, tripKML_loc, tripKML_txt_loc))
 
-    shape_out = 'Not assigned'
-
     worksheet_name = title
 
     shapetxt_out = os.path.join(os.path.expanduser(configs.gtfs_path_root), worksheet_name, 'shapes.txt')
@@ -846,8 +865,7 @@ def write_shape_from_kml(shapeID, title, configs):
         # Single KML file processing.
         if os.path.isfile(tripKML_loc):
 
-            c_shapeKML = colored('  Found KML:{} in directory: {}'.format(tripKML, configs.kml_files_root), color='blue')
-            print(c_shapeKML)
+            print(colored('  Found KML:{} in directory: {}'.format(tripKML, configs.kml_files_root), color='blue'))
 
             shape_out = os.path.join(os.path.expanduser(configs.gtfs_path_root), tripKML)
 
@@ -860,8 +878,7 @@ def write_shape_from_kml(shapeID, title, configs):
         # Multiple KML file processing. Read KML filenames from a text file with the name of the shapeID.
         elif os.path.isfile(tripKML_txt_loc):
 
-            c_shapeTXT = colored('  Found TXT: {} in directory: {}'.format(tripKML_txt_loc, configs.kml_files_root), color='green')
-            print(c_shapeTXT)
+            print(colored('  Found TXT: {} in directory: {}'.format(tripKML_txt_loc, configs.kml_files_root), color='green'))
 
             print('  tripKML_list file name:{}'.format(tripKML_txt_file))
 
@@ -881,15 +898,9 @@ def write_shape_from_kml(shapeID, title, configs):
                     last_sequence_number, accumulated_distance = write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance)
 
     except IOError:
-        c_neg = colored('  KML nor TXT: {} found in directory: {}'.format(tripKML, configs.kml_files_root), color='red')
-        print(c_neg)
+        print(colored('  KML nor TXT: {} found in directory: {}'.format(tripKML, configs.kml_files_root), 'red'))
 
         # TODO Write KML error to log
-
-    # print('Writing shape.txt from KML.\n  --> kml root:{}\n  -->shapeID:{}\n  -->path:{}'.format(configs.kml_files_root, shapeID, tripKML))
-    # print("File '{}' processed.\n    with {:,} nodes and a total distance of {:.2f} miles.".format(configs.file_list[i], last_sequence_number, accumulated_distance))
-    # c_note = colored('{} Completed KML to shape for {}.txt. {}'.format('<' * 5, shapeID, '>' * 5),color='green')
-    # print(c_note)
 
 
 def get_vincenty_distance(point1, point2):
@@ -913,11 +924,9 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
     # Write the KML line coordinate pairs, sequence number, distance, accumulated distance
     lat1 = 0.0
     lng1 = 0.0
-    print("NameElements:{}".format(len(allNameElements)))
     for nameElement in allNameElements:
         # For all the coordinates in the kml line element
         # For the ith coordinate row
-        print("CoordsElements:{}".format(len(allCoordsElements)))
         for i in allCoordsElements:
             # For the jth column in the ith line (lines separated by a blank)
             for j in i.text.split(' '):
@@ -944,10 +953,11 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
 
                 # Write the line to the shapes.txt file
                 write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
-
                 # Assign coordinates to previous
                 lat1 = lat2
                 lng1 = lng2
+
+    print(colored('KML as shape.txt for {}, distance:{:.3f} nodes:{}'.format(shapeID, accumulated_distance, last_sequence_number), 'green', attrs=['bold']))
 
     return last_sequence_number, accumulated_distance
 
