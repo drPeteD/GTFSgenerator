@@ -291,10 +291,9 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
                 print('  Hour {}'.format(hour[0]))
                 trip_start_check = True
                 if hour[0] in before_mid:
-                    print(colored('  @@@ previous dep:{}'.format(prev_depart_time),'blue'))
                     if prev_depart_time[:2] in after_mid:
                         departure_time = '{}:{}:{}'.format(int(hour[0]) + 24, hour[1], hour[2])
-                        print(colored(' *+> previous dp:{} hour[0]:{} departure time:{}'.format(prev_depart_time[:2], hour[0], departure_time) ))
+                        print(colored('Non-standard time. Previous departure time:{}. This departure time:{}'.format(prev_depart_time, departure_time),'blue'))
                     else:
                     # Ensure standard time is properly formatted. Convert to Pandas Timestamp then format string.
                         departure_time = '{}:{}:{}'.format(int(hour[0]), hour[1], hour[2])
@@ -320,7 +319,6 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
             drop_off_type = worksheet[i][24]
             distance_traveled =  worksheet[i][25]
 
-            # TODO Determine distance from previous stop
             # TODO Check that end stop in a trip has a time.
 
             # If trip start is False, then a time point has not been processed. Skip to next row.
@@ -329,8 +327,9 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
                                                                      distance_traveled)
                 stop_time_data.append('{}\n'.format(stop_time_line))
 
-            print(colored(' previous dep:{}, this dep:{}'.format(prev_depart_time, departure_time),'green'))
-            prev_depart_time = departure_time
+            # print(colored(' previous dep:{}, this dep:{}'.format(prev_depart_time, departure_time),'green'))
+            if departure_time:
+                prev_depart_time = departure_time
 
     # Open and append to file stop_times.txt
     print('Writing stop_times data...')
@@ -873,7 +872,7 @@ def write_shape_from_kml(shapeID, title, configs):
             accumulated_distance = 0.0
             allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
             write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number,
-                                 accumulated_distance)
+                                 accumulated_distance, configs)
 
         # Multiple KML file processing. Read KML filenames from a text file with the name of the shapeID.
         elif os.path.isfile(tripKML_txt_loc):
@@ -895,7 +894,7 @@ def write_shape_from_kml(shapeID, title, configs):
                     print('    processing KML file:{}'.format(item))
                     tripKML_loc = os.path.join(os.path.expanduser(configs.kml_files_root), item)
                     allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
-                    last_sequence_number, accumulated_distance = write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance)
+                    last_sequence_number, accumulated_distance = write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance, configs)
 
     except IOError:
         print(colored('  KML nor TXT: {} found in directory: {}'.format(tripKML, configs.kml_files_root), 'red'))
@@ -909,18 +908,28 @@ def get_vincenty_distance(point1, point2):
     return d
 
 
-def write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance):
+def write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance):
+    """
 
+    :param shape_txt_out:
+    :param shapeID:
+    :param lat2:
+    :param lng2:
+    :param last_sequence_number:
+    :param accumulated_distance:
+    :return:
+    """
     # Write each output line in shapes.txt
     f = open(shape_txt_out, 'a')
-    line_out = "{}, {:.6f}, {:.6f}, {}, {:.2f}, {:.3f}\n".format \
-        (shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
+    # Removed distance to previous point.
+    line_out = "{}, {:.6f}, {:.6f}, {}, {:.2f}\n".format \
+        (shapeID, lat2, lng2, last_sequence_number, accumulated_distance)
     # print(' shape_txt_out:{}'.format(shape_txt_out))
     # print('  write_shape_line:{}'.format(line_out))
     f.write(line_out)
 
 
-def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance):
+def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance, configs):
     # Write the KML line coordinate pairs, sequence number, distance, accumulated distance
     lat1 = 0.0
     lng1 = 0.0
@@ -952,12 +961,14 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
                 accumulated_distance = distance + accumulated_distance
 
                 # Write the line to the shapes.txt file
-                write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
+                write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance)
+                # write_shape_line(shape_txt_out, shapeID, lat2, lng2, last_sequence_number, accumulated_distance, distance)
+
                 # Assign coordinates to previous
                 lat1 = lat2
                 lng1 = lng2
 
-    print(colored('KML as shape.txt for {}, distance:{:.3f} nodes:{}'.format(shapeID, accumulated_distance, last_sequence_number), 'green', attrs=['bold']))
+    print(colored('  KML as shape.txt for {}, distance:{:.3f} {} nodes:{}'.format(shapeID, accumulated_distance, configs.dist_units, last_sequence_number), 'green', attrs=['bold']))
 
     return last_sequence_number, accumulated_distance
 
@@ -995,6 +1006,7 @@ def run_validator(folder_path, filename, configs):
 
     # ref: https://github.com/google/transitfeed/wiki/FeedValidator
     subprocess.run(['feedvalidator.py','-n','-o','{}'.format('validator.html'), '{}'.format(gtfs_zip)])
+    print(colored('{} Feed Validator Result {}'.format(15 * '^', 15 * '^'), 'cyan', 'on_grey'))
 
 
 def get_google_worksheet_row_col_list(column_list, worksheet, configs):
@@ -1147,7 +1159,7 @@ def print_et (text_color, start_time, title, note, configs):
     tdelta = tdelta.seconds
     tdelta_colored = colored(tdelta, text_color, 'on_grey')
     c_note = colored(note, color=text_color)
-    print('   {} seconds ET. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time.strftime('%c')))
+    print('   Elapsed Time: {} seconds. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time.strftime('%c')))
     write_run_info_to_file(start_time, stop_time, title, note, configs)
 
 
@@ -1437,7 +1449,6 @@ def main (argv=None):
                             print('{}'.format(current_worksheet_colored))
 
                             # TODO: Process any type of worksheet;  .xls, csv, or .ods
-                            # http://davidmburke.com/2013/02/13/pure-python-convert-any-spreadsheet-format-to-list/
 
                             # TODO Add get_stop_times_rows as a function.
                             # Get stop_times rows.
