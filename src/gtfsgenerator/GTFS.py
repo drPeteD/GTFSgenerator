@@ -244,6 +244,12 @@ class GtfsHeader:
 #
 #         return stop_list
 
+def remove_dup_stops(stops):
+    """
+
+    :param stops:
+    :return:
+    """
 
 
 

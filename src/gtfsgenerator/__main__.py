@@ -32,7 +32,7 @@ import fileinput
 import os
 import subprocess
 import sys
-import timeit # TODO Replace my time deltas with timeit.
+from shutil import copyfile
 import xml.etree.ElementTree as ET
 import zipfile
 from os.path import expanduser
@@ -41,6 +41,7 @@ from geopy.distance import vincenty
 from oauth2client import tools
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
+from pytz import common_timezones
 from pandas import to_datetime
 import pandas as pd
 from pandas import read_excel
@@ -216,7 +217,7 @@ def create_worksheet_name_output_dir(worksheet_title, configs):
         print('Existing directory {}'.format(worksheet_name_output_dir))
 
 
-def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, configs):
+def write_stop_times_file(worksheet_title, rows, columns, stops, workbook, worksheet, configs):
     """
 
     0 Tram / Light Rail
@@ -266,7 +267,7 @@ def write_stop_times_file(worksheet_title, rows, columns, stops, worksheet, conf
         # Build trip_id from trip_id plus time header.
         trip_id = '{}-{}'.format(worksheet[1][20], worksheet[2][j])
         # Create a trip.txt entry
-        write_trips_file(trip_id, worksheet_title=worksheet_name_output_dir, worksheet=worksheet, configs=configs)
+        write_trips_file(trip_id, worksheet_name_output_dir, workbook, worksheet, configs)
         trip_count += 1
         # Begining of trip loop, set check to False.
         trip_start_check = False
@@ -361,12 +362,14 @@ def write_trips_header(worksheet_title, configs):
     x.write_header('trips', worksheet_name_output_dir)
 
 
-def write_trips_file(trip_id, worksheet_title, worksheet, configs):
+def write_trips_file(trip_id, worksheet_title, workbook, worksheet, configs):
     '''
     Write trips values.
 
     route_id(r), service_id(r), trip_id(r), trip_headsign, trip_short_name, direction_id, block_id, shape_id,  wheelchair_acesible, bikes_allowed
     :param trip_id:
+    :param
+    :param
     :return:
     '''
 
@@ -398,10 +401,10 @@ def write_trips_file(trip_id, worksheet_title, worksheet, configs):
                                                        wheelchair_acesible, bikes_allowed)
     print(colored(trip_line, color='green', on_color='on_white'))
 
-    if route_id is not None and service_id is not None and trip_id is not None:
+    if not route_id and not service_id and not trip_id:
     # If any required value is empty write exception and continue loop
         exception = 'Required value missing. trip line i:{} route_id:{} service_id:{} trip_id:{}'.format(i, route_id, service_id, trip_id)
-        write_exception_file(exception, worksheet_title, configs)
+        write_exception_file(exception, workbook, worksheet, configs)
 
     # Can't write trips header for each trip.
     # worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
@@ -418,7 +421,7 @@ def write_trips_file(trip_id, worksheet_title, worksheet, configs):
     print('Writing trip {}... to {}'.format(trip_id, gtfs_file))
 
 
-def write_stops_file(worksheet_title, rows, worksheet, configs):
+def write_stops_file(worksheet_title, rows, workbook, worksheet, configs):
     """
     GTFS stops.txt file from worksheet output in csv format with key values:
     stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,
@@ -463,18 +466,18 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
         except IndexError:
             # Catch Out of Range error and write exception
             exception = 'IndexError. stop row i:{}'.format(i)
-            write_exception_file(exception, worksheet_title, configs)
+            write_exception_file(exception, workbook, worksheet_title, configs)
             print(colored(exception, color='red'))
             continue
 
-        if stop_id and stop_name and stop_lat and stop_lon:
+        if stop_id and stop_name and stop_lat and stop_lon: # all required fields?
             # Format stop line output
             stop = ('{},{},{},{},{},{},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, loc_type, parent, timezone, wheel_board))
 
             # Check to see if stop exists, write to exception if true.
-            if stop in stop_list:
+            if stop[0] in stop_list:
                 exception = 'Duplicate stop row {} :{}'.format(i, stop)
-                write_exception_file(exception, worksheet_title, configs)
+                write_exception_file(exception, workbook, worksheet_title, configs)
                 print(colored(exception))
             # Write to stop_list if it does not exist. Print the stop to console.
             else:
@@ -483,7 +486,7 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
         else:
             # If any required value is empty write exception and continue loop
             exception = 'Required value missing. stop line i:{} stop_id:{} stop_name:{} stop_lat:{} stop_lon{}'.format(i, stop_id, stop_name, stop_lat, stop_lon)
-            write_exception_file(exception, worksheet_title, configs)
+            write_exception_file(exception, workbook, worksheet_title, configs)
 
     # Write stop_list to stops.txt
     gtfs_file = os.path.join(worksheet_name_output_dir, 'stops.txt')
@@ -495,7 +498,7 @@ def write_stops_file(worksheet_title, rows, worksheet, configs):
     return stop_list
 
 
-def write_calendar_file(worksheet_title, worksheet, configs):
+def write_calendar_file(worksheet_title, workbook, worksheet, configs):
     '''
     Write a service calendar derived from the worksheet entries.
         Creates a service exception for the calendar service_id for each Holiday specified in the Config file.
@@ -526,7 +529,7 @@ def write_calendar_file(worksheet_title, worksheet, configs):
         sunday      = worksheet[1][35]
     except IndexError: # Out of bounds if there is no worksheet to process
         exception = 'Is there a worksheet referenced in calendar?.'
-        write_exception_file(exception, worksheet_title, configs)
+        write_exception_file(exception, workbook, worksheet_title, configs)
 
     # Placeholders for feed dates in spreadsheet are ignored.
     if configs.feed_start_date:
@@ -541,10 +544,10 @@ def write_calendar_file(worksheet_title, worksheet, configs):
                                                              wednesday, thursday, friday, saturday, sunday,
                                                              start_date, end_date)
 
-    if service_id is not None and monday is not (True or False) and tuesday is not (True or False) and wednesday is not (True or False) and thursday is not (True or False) and friday is not (True or False) and saturday is not (True or False) and sunday is not (True or False):
+    if not service_id and not monday and not tuesday and not wednesday and not thursday and not friday and not saturday and not sunday:
         # If any required value is empty write exception and continue loop
-        exception = 'Required value missing. in calendar.'
-        write_exception_file(exception, worksheet_title, configs)
+        exception = 'Required value missing in calendar.'
+        write_exception_file(exception, workbook, worksheet_title, configs)
 
     # Open and append to existing file
     gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar.txt')
@@ -761,17 +764,16 @@ def write_fare_attributes_file(worksheet_title, configs):
     f.close()
 
 
-def create_exceptions_file(current_worksheet_title, configs):
+def create_exceptions_file(configs):
 
-    worksheet_name_output_dir = get_worksheet_name_output_dir(current_worksheet_title, configs)
     exception_file = os.path.join(os.path.expanduser(configs.report_path), 'exceptions.txt')
     # Overwrite existing file
-    f = open(exception_file, "a")
-    f.write('Worksheet:{}\n'.format(current_worksheet_title))
+    f = open(exception_file, "w")
+    f.write('GTFS Generator Process start:{}\n'.format(pd.to_datetime('now').strftime("%c")))
     f.close()
 
 
-def write_exception_file(exception, worksheet_title, configs):
+def write_exception_file(exception, workbook, worksheet, configs):
 
     # TODO Delete this
     # worksheet_name_output_dir = get_worksheet_name_output_dir(worksheet_title, configs)
@@ -780,8 +782,8 @@ def write_exception_file(exception, worksheet_title, configs):
 
     # Open and append existing file (clear the file before opening the worksheet)
     f = open(exception_file, "a")
-    now = datetime.now().strftime('%X')
-    f.write('worksheet:{}\n   exception:{}  {} '.format(worksheet_title, exception, now))
+    now = pd.to_datetime('now').strftime("%c")
+    f.write('Workbook: {} Worksheet:{}\n   exception:{}  {} '.format(workbook, worksheet, exception, now))
     f.close()
 
 
@@ -836,7 +838,7 @@ def write_shapes_header(worksheet_title, configs):
     x.write_header('shapes', worksheet_name_output_dir)
 
 
-def write_shape_from_kml(shapeID, title, configs):
+def write_shape_from_kml(shapeID, workbook, title, configs):
     """
     Function constructs a .kml and .txt filename from the worksheet entry.
     If the kml_txt exists, then the text file contains two or more kml entries to be concatenated together into
@@ -860,51 +862,65 @@ def write_shape_from_kml(shapeID, title, configs):
     shapetxt_out = os.path.join(os.path.expanduser(configs.gtfs_path_root), worksheet_name, 'shapes.txt')
     print('  shapes.txt output to:{}'.format(shapetxt_out))
 
-    try:
-        # Single KML file processing.
-        if os.path.isfile(tripKML_loc):
+    # Single KML file processing.
+    if os.path.isfile(tripKML_loc):
 
-            print(colored('  Found KML:{} in directory: {}'.format(tripKML, configs.kml_files_root), color='blue'))
+        print(colored('  Found KML:{} in directory: {}'.format(tripKML, configs.kml_files_root), color='blue'))
 
-            shape_out = os.path.join(os.path.expanduser(configs.gtfs_path_root), tripKML)
+        last_sequence_number = 0
+        accumulated_distance = 0.0
+        allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
+        write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number,
+                             accumulated_distance, configs)
 
+    # Multiple KML file processing. Read KML filenames from a text file with the name of the shapeID.
+    elif os.path.isfile(tripKML_txt_loc):
+
+        print(colored('  Found TXT: {} in directory: {}'.format(tripKML_txt_loc, configs.kml_files_root), color='green'))
+
+        print('  tripKML_list file name:{}'.format(tripKML_txt_file))
+
+        with open(tripKML_txt_loc, 'r') as kml_list:
+            kml_filenames = kml_list.readlines()
+            kml_files = []
+            for elem in kml_filenames:
+                kml_files.append(elem.strip())
+            print('   KML files in {}:{}'.format(tripKML_txt_file,kml_files))
             last_sequence_number = 0
             accumulated_distance = 0.0
-            allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
-            write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number,
-                                 accumulated_distance, configs)
 
-        # Multiple KML file processing. Read KML filenames from a text file with the name of the shapeID.
-        elif os.path.isfile(tripKML_txt_loc):
-
-            print(colored('  Found TXT: {} in directory: {}'.format(tripKML_txt_loc, configs.kml_files_root), color='green'))
-
-            print('  tripKML_list file name:{}'.format(tripKML_txt_file))
-
-            with open(tripKML_txt_loc, 'r') as kml_list:
-                kml_filenames = kml_list.readlines()
-                kml_files = []
-                for elem in kml_filenames:
-                    kml_files.append(elem.strip())
-                print('   KML files in {}:{}'.format(tripKML_txt_file,kml_files))
-                last_sequence_number = 0
-                accumulated_distance = 0.0
-
-                for item in kml_files:
-                    print('    processing KML file:{}'.format(item))
-                    tripKML_loc = os.path.join(os.path.expanduser(configs.kml_files_root), item)
-                    allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
-                    last_sequence_number, accumulated_distance = write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance, configs)
-
-    except IOError:
+            for item in kml_files:
+                print('    processing KML file:{}'.format(item))
+                tripKML_loc = os.path.join(os.path.expanduser(configs.kml_files_root), item)
+                allNameElements, allCoordsElements = get_kml_elements(tripKML_loc)
+                last_sequence_number, accumulated_distance = write_coords_to_file(shapetxt_out, allNameElements, allCoordsElements, shapeID, last_sequence_number, accumulated_distance, configs)
+    # No KML or TXT files found
+    else:
         print(colored('  KML nor TXT: {} found in directory: {}'.format(tripKML, configs.kml_files_root), 'red'))
+        exception = 'KML or TXT not found in\n   {}.'.format(configs.kml_files_root)
+        worksheet = title
+        write_exception_file(exception, workbook, worksheet, configs)
 
-        # TODO Write KML error to log
 
-
-def get_vincenty_distance(point1, point2):
+def get_vincenty_distance(point1, point2, configs):
+    """
+    Determine the distance between two coordinate pairs.
+    :param point1: Latitude, Longitude pair 1
+    :param point2: Latitude, Longitude pair 2
+    :param configs: Configuration file values, distance units in feet, miles, meters, or kilometers. No value defaults to miles.
+    :return:
+    """
     # Calculate the distance between to lat/long pairs
-    d = vincenty(point1, point2).miles
+    if configs.dist_units == 'feet':
+        d = vincenty(point1, point2).feet
+    elif configs.dist_units == 'miles':
+        d = vincenty(point1, point2).miles
+    elif configs.dist_units == 'meters':
+        d = vincenty(point1, point2).meters
+    elif configs.dist_units == 'kilometers':
+        d = vincenty(point1, point2).kilometers
+    else:
+        d = vincenty(point1, point2).miles
     return d
 
 
@@ -952,7 +968,7 @@ def write_coords_to_file(shape_txt_out, allNameElements, allCoordsElements, shap
                     # distance = getHaversine((lat1, lng1), (lat2, lng2))
                     point1 = (lat1, lng1)
                     point2 = (lat2, lng2)
-                    distance = get_vincenty_distance(point1, point2)
+                    distance = get_vincenty_distance(point1, point2, configs)
 
                 # Accumulate sequence number
                 last_sequence_number += 1
@@ -1005,8 +1021,10 @@ def run_validator(folder_path, filename, configs):
     os.chdir(os.path.join(expanduser(configs.gtfs_path_root), folder_path))
 
     # ref: https://github.com/google/transitfeed/wiki/FeedValidator
-    subprocess.run(['feedvalidator.py','-n','-o','{}'.format('validator.html'), '{}'.format(gtfs_zip)])
+    note = subprocess.run(['feedvalidator.py','-n','-o','{}'.format('validator.html'), '{}'.format(gtfs_zip)])
     print(colored('{} Feed Validator Result {}'.format(15 * '^', 15 * '^'), 'cyan', 'on_grey'))
+    # TODO Return results from stdout
+    #ref: http://stackoverflow.com/questions/5136611/capture-stdout-from-a-script-in-python
 
 
 def get_google_worksheet_row_col_list(column_list, worksheet, configs):
@@ -1117,27 +1135,47 @@ def write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs):
     f.close()
 
 
-def write_run_info_to_file(start_time, stop_time, title, note, configs):
-    # Open and append to  existing file
-    print('from write_run_info_to_file\n filename:{}\n start_time:{} stop_time:{}'.format\
-              (os.path.join(configs.report_path, configs.stats_filename),start_time, stop_time))
-    if  os.path.exists(os.path.expanduser(configs.report_path)):
-        f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), "a")
-        f.write('Start {}\n'.format(to_datetime('now')))
-    else:
+def clear_run_info_file(note, configs):
+    """
+    Clear existing run info file, write date and time.
+    :param title:
+    :param note:
+    :return:
+    """
+    print('Clear run_info\n filename:{}\n Date and time:{}'.format\
+              (os.path.join(configs.report_path, configs.stats_filename), pd.to_datetime('now').strftime('%c')))
+    # If the report location does not exist, create it.
+    if  not os.path.exists(os.path.expanduser(configs.report_path)):
         print(colored('{} does not exist, creating {}'.format\
                           (os.path.expanduser(configs.report_path), \
-                           os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename)), \
-                      color='red'))
-        os.makedirs(os.path.expanduser(configs.report_path)) # make directory from full path in config file
-        f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), 'w')
-        f.write('Start {}\n'.format(to_datetime('now').strftime('%X')))
+                           os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename)), 'red'))
+        # make directory from full path in config file
+        os.makedirs(os.path.expanduser(configs.report_path))
+    f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), 'w')
+    f.write('{}\n   {}'.format(pd.to_datetime('now').strftime("%c"), note))
 
-    # Determine time difference from start
-    tdelta = stop_time - start_time
-    info_header = '  {} {}'.format(note, title)
-    run_info = '      Elapsed time:{} '.format(tdelta.seconds)
-    f.write('{}\n{}\n'.format(info_header, run_info))
+
+def write_run_info_to_file(elapsed_time, title, note, configs):
+    """
+    Write run info to file.
+    :param start_time:
+    :param stop_time:
+    :param title:
+    :param note:
+    :return:
+    """
+    # Open and append to  existing file
+    ts = pd.to_datetime('now').tz_localize('utc')
+    local_time = ts.tz_convert(configs.local_tz)
+    print('from write_run_info_to_file\n filename:{}\n et:{} seconds'.format\
+              (os.path.join(configs.report_path, configs.stats_filename), elapsed_time))
+    if  not os.path.exists(os.path.expanduser(configs.report_path)):
+        print(colored('{} does not exist, creating {}'.format(os.path.expanduser(configs.report_path), \
+                           os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename)), 'red'))
+        # make directory from full path in config file
+        os.makedirs(os.path.expanduser(configs.report_path))
+    f = open(os.path.join(os.path.expanduser(configs.report_path), configs.stats_filename), 'a')
+    f.write('{} {} et:{} seconds ts:{}\n'.format(title, note, elapsed_time, local_time.strftime('%X')))
     f.close()
 
 
@@ -1158,9 +1196,9 @@ def print_et (text_color, start_time, title, note, configs):
     tdelta = stop_time - start_time
     tdelta = tdelta.seconds
     tdelta_colored = colored(tdelta, text_color, 'on_grey')
-    c_note = colored(note, color=text_color)
-    print('   Elapsed Time: {} seconds. {} Present date-time is {}'.format(tdelta_colored, c_note, stop_time.strftime('%c')))
-    write_run_info_to_file(start_time, stop_time, title, note, configs)
+    c_note = colored(note, text_color)
+    print('   Elapsed Time: {} seconds. {} time stamp {}'.format(tdelta_colored, c_note, stop_time.strftime('%c')))
+    write_run_info_to_file(tdelta, title, note, configs)
 
 
 def combine_gtfs_feeds(worksheets, configs):
@@ -1194,7 +1232,7 @@ def combine_gtfs_feeds(worksheets, configs):
     combine_files(worksheets, configs)
     # Zip the master files together
     agency_ID = configs.agency_id
-
+    # TODO use set to eliminate duplicate stops
     create_gtfs_zip(os.path.expanduser(configs.gtfs_path_root), agency_ID)
     # Validate the master
     path = os.path.expanduser(configs.gtfs_path_root)
@@ -1298,12 +1336,48 @@ def write_workbook_dictionary(workbook_dictionary, configs):
     f = open(os.path.join(os.path.expanduser(configs.report_path), configs.worksheet_list), 'w')
     print('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary)))
     f.write('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary.keys())))
+    f.write(' >> ignoring sheets:{}'.format(configs.ignore_sheets))
     for key, value in workbook_dictionary.items():
         # print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
-        f.write('\nWorkbook {} has {} worksheets.'.format(key, len(workbook_dictionary[key])))
+        f.write('\nWorkbook {} has {} worksheets.\n'.format(key, len(workbook_dictionary[key])))
         # print('{}'.format(value))
         f.write('{}'.format(value))
     f.close()
+
+
+def copy_file(start_time, configs):
+    """
+    Copy completed zipped feed file to location in configuration file.
+    :param configs: agency_id, gtfs_path_root, copy_path
+    :return:
+    """
+    gtfs_source = os.path.join(os.path.expanduser(configs.gtfs_path_root), configs.agency_id + '.zip')
+    gtfs_destination = os.path.join(os.path.expanduser(configs.copy_path), configs.agency_id + '.zip')
+
+    # copyfile source, destination
+    print('Source:{}\n  Destination:{}'.format(gtfs_source, gtfs_destination))
+    copyfile(gtfs_source, gtfs_destination)
+    note = 'Validation results'
+    print_et(text_color='green', start_time=start_time, title='  >> Worksheet complete.'.format(current_worksheet_title),
+             note=note, configs=configs)
+
+
+def remove_dup_stops(stops):
+    """
+    Remove duplicate stops from a stops.txt file
+    :param stops:
+    :return:
+    """
+    # List to set
+    stop_set = set(stops)
+    sorted(stop_set)
+    list(stop_set)
+
+    # Could use .add for iterables.
+    # stop_set = set()
+    # for stop in stops:
+    #     stop_set.add(stop)
+
 
 
 def main (argv=None):
@@ -1357,18 +1431,15 @@ def main (argv=None):
         pretty_print_args(configs)
 
         # >>> Test <<< code here
-
         if configs.test is True:
             print('Testing is true...\n')
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            # Call the test function
+            # Call the function to test
 
             # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
-
-            shapeID ='21_in_TraceFork_Southridge_local'
-            title = '21_in'
-            write_shape_from_kml(shapeID, title, configs)
+            start_time = pd.to_datetime('now')
+            copy_file(start_time, configs)
 
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1385,18 +1456,23 @@ def main (argv=None):
 
             workbooks = configs.google_workbook_names.split(',')
 
+            # Clear existing info report, write header.
+            note = ('{} Workbooks: {}.'.format(configs.agency_id.upper(), workbooks))
+            clear_run_info_file(note, configs)
+
             for workbook in workbooks:
 
-                note = '{}'.format('{}\nStart processing {} workbook {}.'.format(\
-                        start_time, configs.agency_id, workbook))
-                c_note = colored(note,color='green',on_color='on_grey')
-                print(c_note)
-                print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
-                print('Workbook:{}'.format(workbook))
-
+                # Retreive worksheets from workbook
                 route_workbook = open_google_workbook(workbook, defaults, configs)
                 worksheets = route_workbook.worksheets()
+
                 # print('worksheets:{}'.format(worksheets))
+                c_note = colored(note,color='green',on_color='on_grey')
+                print(c_note)
+                note = '{}'.format('{}\nStart processing {} workbook {} with {} worksheets.'.format( \
+                    start_time, configs.agency_id, workbook, len(wrkbk_dict)))
+                print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
+                print('Workbook:{}'.format(workbook))
 
                 # Select the sheets to process. Create empty list to hold processed sheet titles.
                 sheets  = []
@@ -1409,6 +1485,10 @@ def main (argv=None):
                 # Exclude worksheets named Master and Template
                 ignore_list = configs.ignore_sheets.split(',')
                 print('ignore list:{}'.format(ignore_list))
+
+                # Create or overwrite exceptions.txt file in the report directory
+                create_exceptions_file(configs)
+                print('Creating exceptions file...')
 
                 # Loop throught the list of worksheet titles in G_worksheets contained in the worksheets object.
                 for worksheet in worksheets:
@@ -1432,10 +1512,6 @@ def main (argv=None):
                             create_worksheet_name_output_dir(current_worksheet_title, configs=configs)
                             print('Creating output directory...')
 
-                            # Put an exceptions file in the directory
-                            create_exceptions_file(current_worksheet_title, configs)
-                            print('Creating exceptions file...')
-
                             # Required rows: r2=headings(optional) r3=data r6=trip headings from configuration
                             # Cast list as integer values
 
@@ -1453,7 +1529,7 @@ def main (argv=None):
                             # TODO Add get_stop_times_rows as a function.
                             # Get stop_times rows.
                             note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='>>> Start worksheet data retrieval. <<<', note=note,
+                            print_et(text_color='green', start_time=start_time, title='>>> Begin worksheet data retrieval. <<<', note=note,
                                      configs=configs)
 
                             if configs.source_type == 'google':
@@ -1497,7 +1573,7 @@ def main (argv=None):
                             write_routes_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
 
                             # Calendar.txt processing
-                            write_calendar_file(worksheet_title=current_worksheet_title, worksheet=ws_data, configs=configs)
+                            write_calendar_file(worksheet_title=current_worksheet_title, workbook=workbook, worksheet=ws_data, configs=configs)
 
                             # Calendar_dates.txt processing
                             # TODO rework service exception determination
@@ -1505,9 +1581,10 @@ def main (argv=None):
                             write_calendar_dates_file(service_id, worksheet_title=current_worksheet_title, configs=configs)
 
                             # Stops.txt processing
-                            #   Collect stops in memory for later merge.
-                            stops_list = write_stops_file(worksheet_title=current_worksheet_title, rows=row_list, worksheet=ws_data, configs=configs)
-
+                            # Merge stops to stops-list.
+                            stops_list = write_stops_file( worksheet_title=current_worksheet_title, rows=row_list, workbook=workbook, worksheet=ws_data, configs=configs)
+                            # Remove duplicates from stops_list.
+                            stops_list = remove_dup_stops(stops_list)
                             note = '{}'.format('')
                             print_et(text_color='green', start_time=start_time, title='Stops processing.', note=note,
                                      configs=configs)
@@ -1519,9 +1596,9 @@ def main (argv=None):
                                      configs=configs)
 
                             # Stop times and trips processing
-                            write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=stops_list, worksheet=ws_data, configs=configs)
+                            write_stop_times_file(worksheet_title=current_worksheet_title, rows=row_list, columns=stops_column_list, stops=stops_list, workbook=workbook, worksheet=ws_data, configs=configs)
                             note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='Start shapes.txt from kml.',
+                            print_et(text_color='green', start_time=start_time, title='Shapes processing from kml.',
                                      note=note, configs=configs)
 
                             # Write_shapes.txt processing
@@ -1529,11 +1606,11 @@ def main (argv=None):
                             print('****** From main - write_shapes_header: current_worksheet_title:{}'.format(current_worksheet_title))
                             shapeID     = ws_data[1][25]
                             print('shapeID:{}'.format(shapeID))
-                            write_shape_from_kml(shapeID=shapeID, title=current_worksheet_title, configs=configs)
+                            write_shape_from_kml(shapeID=shapeID, workbook=workbook, title=current_worksheet_title, configs=configs)
 
-                            print('Worksheet {} complete.'.format(current_worksheet_title))
+                            print('Worksheet {} processing complete.'.format(current_worksheet_title))
                             note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='Worksheet {} complete.'.format(current_worksheet_title),
+                            print_et(text_color='green', start_time=start_time, title='Worksheet {} processing complete.'.format(current_worksheet_title),
                                      note=note, configs=configs)
 
                             # Zip the worksheet GTFS files
@@ -1550,25 +1627,31 @@ def main (argv=None):
                             filename = current_worksheet_title
                             run_validator(folder_path, filename, configs)
 
-                            note = '{}  {}{}  {}'.format(20 * '>', current_worksheet_title, ' complete. ', 20 * '<')
-                            print_et(text_color='green', start_time=start_time, title='Complete. {}.'.format(current_worksheet_title),
+                            note = '{}  {}  {}\n  Validation results'.format(15 * '^', current_worksheet_title, 15 * '^')
+
+                            print_et(text_color='green', start_time=start_time, title='  >> Worksheet complete.'.format(current_worksheet_title),
                                      note=note, configs=configs)
 
                             # Add worksheet title to list of processed worksheets for merge function
                             p_sheets.append(current_worksheet_title)
+                            # TODO write processed sheet list to file
 
                 # Merge feeds in the processed sheets list
                 print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
                 note = '{}'.format('')
                 print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
                 combine_gtfs_feeds(worksheets=p_sheets, configs=configs)
+
                 # Run validator on combined feeds
                 folder_path = ''
                 filename    = configs.agency_id
                 run_validator(folder_path, filename, configs)
+
                 # Startup the schedule_viewer with the master GTFS.zip
                 # run_schedule_viewer(configs)
 
+                # Copy finished zipped gtfs to Google Drive for pickup.
+                copy_file(start_time, configs)
                 print_et(text_color='red', start_time=start_time, title='Finished processing.\n', note='END',
                          configs=configs)
 
