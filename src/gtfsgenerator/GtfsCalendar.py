@@ -26,20 +26,19 @@ def ServiceExceptions(configs):
     start_date      = configs.feed_start_date
     end_date        = configs.feed_end_date
     holiday_list    = configs.holidays
+    delta_max       = configs.delta_max
 
     # TODO 'process' the holiday text to remove white space and apostrophes
     if not start_date:
         print(colored('No start date, assuming today.', 'red'))
         start_date = pd.datetime.today().strftime('%Y%m%d')
-        delta_max = 364
     if not end_date:
         print(colored('No end date, adding delta of {} to start.', 'red').format(delta_max))
         end_date = pd.datetime(start_date) + pd.DateOffset(days=delta_max)
-        delta_max = 364
     if not holiday_list:
         print(colored('No holidays specified.', 'red'))
 
-    cal_dates = get_dates(start_date, end_date, delta_max, configs)
+    cal_dates = get_dates(start_date, end_date, configs)
 
     return cal_dates
 
@@ -56,22 +55,23 @@ def unify_holiday_names(configs):
     """
 
 
-def get_dates(start, end, delta_max, configs):
+def get_dates(start, end, configs):
     """
     This function retrieves every holiday date refined in the UsaWvCalendar class the between the dates specified.
-    :param begin_date: Holiday calendar begining date
-    :param end: Holiday calenday ending date
+    :param begin_date: Holiday calendar begining date in datetime-like string
+    :param end: Holiday calenday ending date in a datetime-like string
     :param dt_max: Maximum days between begining and end - GTFS feed not allowed to be > 365 days.
     :param configs: contains a list of holidays
     :return: cal_dates, a list of strings containing the holidays in GTFS date format.
     """
 
     holiday_list = configs.holidays
-    start = pd.Timestamp(start)
-    end   = pd.Timestamp(end)
-    print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start.strftime('%Y%m%d'), end.strftime('%Y%m%d'), delta_max))
+    delta_max   = configs.delta_max
+    # start = pd.Timestamp(start)
+    # end   = pd.Timestamp(end)
+    print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start, end, delta_max))
 
-    my_calendar = determine_calendar_dates(start, end, delta_max)
+    my_calendar = determine_calendar_dates(start, end, configs)
     # print('  from GtfsCalendar.getDates my_calendar\n{}'.format(vars(my_calendar)))
     my_dates = select_agency_calendar_dates(my_calendar, configs)
 
@@ -87,7 +87,7 @@ def get_dates(start, end, delta_max, configs):
     return cal_dates
 
 
-def determine_calendar_dates(start_date, end_date, delta_max):
+def determine_calendar_dates(start_date, end_date, configs):
     """
     This function determines all the holidays defined in the USA-WV Calendar class between the start and end dates.
     :param start_date:
@@ -97,30 +97,49 @@ def determine_calendar_dates(start_date, end_date, delta_max):
     """
 
     cal = UsaWvCalendar()
-    start, end = check_calendar_length(start_date, end_date, delta_max)
+    start, end = check_calendar_length(start_date, end_date, configs)
     calendar = cal.holidays(start, end, return_name=True)
 
     return calendar
 
 
-def check_calendar_length(start, end, max_length):
+def check_calendar_length(start, end, configs):
     """
     This function checks the number of days between the start and stop dates, if greater than the max_length, the
         end date is calculated from the start date.
-    :param start: starting date of the calendar
+    :param start: starting date of the calendar in a datetime-like
     :param end: ending date of the calendar
     :param max_length: maximum number of days from start to end
     :return: start and stop dates for calendar determination.
     """
 
+    # Text to Pandas Timestamps
+    start = pd.Timestamp(start)
+    end   = pd.Timestamp(end)
     delta = end - start
     print (' From check_calendar_length - delta days between start and stop:{}'.format(delta))
-    if delta > pd.Timedelta(days=int(max_length)):
-        new_end = DateOffset(days=364) + start
-        print(colored(('Start to end length exeeded, {} days, max is {}'.format(delta, max_length)),color='red'))
+    # If a delta max is specified in the configuration file use it, else default to 1 year.
+    if configs.delta_max:
+        offset = int(configs.delta_max)
     else:
-        new_end = end
-    print(colored(' >> New start date is {}, end date is {}.'.format(start.strftime('%Y%m%d'), new_end.strftime('%Y%m%d')), color='green'))
+        offset = 365
+    # If the the start and end days are greater than the configuration file maximum, add the configuration maximum days
+    #   to the start date. *** GTFS feedfiles can not exceed 1 year.
+    if delta > pd.Timedelta(days=offset):
+        new_end = start + DateOffset(days=int(configs.delta_max))
+        print(colored(('Start to end length exeeded, calculated {} days, max is {} days.'.format\
+                           (delta, configs.delta_max)),color='red'))
+        # TODO write exception
+        start   = start.strftime('%Y%m%d')
+        new_end = new_end.strftime('%Y%m%d')
+    # Start and Stop are good, return unchanged.
+    else:
+        start   = start.strftime('%Y%m%d')
+        new_end = end.strftime('%Y%m%d')
+
+    print(colored(' >> New start date is {}, end date is {}.'.format(start, new_end), color='green'))
+
+    # Return start and end as GTFS formated date strings
     return start, new_end
 
 
@@ -147,6 +166,69 @@ def election_observance(dt):
         return dt
     else:
         return dt + pd.DateOffset(weekday=TU(1))
+
+
+# TODO move write to GtfsCalendar
+# def write_calendar_file(workbook, worksheet_title, worksheet_data, configs):
+#     '''
+#     Write a service calendar derived from the worksheet_data entries.
+#         Creates a service exception for the calendar service_id for each Holiday specified in the Config file.
+#
+#     :param worksheet_title: Used to generate complete path to worksheet_data feed file.
+#     :param worksheet_data: Read the service_id and service DOW. Service dates are ignored as they are read from the Config.
+#     :param configs:
+#     :return:
+#     '''
+#
+#     wrkbk_wrksht_output_dir = get_worksheet_name_output_dir(workbook, worksheet_title, configs)
+#
+#     # File header
+#     x = GtfsHeader()
+#     x.write_header('calendar', wrkbk_wrksht_output_dir)
+#
+#     # REMEMBER Python counts begin at zero!
+#     # Worksheet data is in the third row; retrieved as the second list of row data.
+#     # Address the nested list-static data as list[1] (second list)
+#     try:
+#         service_id  = worksheet_data[1][28]
+#         monday      = worksheet_data[1][29]
+#         tuesday     = worksheet_data[1][30]
+#         wednesday   = worksheet_data[1][31]
+#         thursday    = worksheet_data[1][32]
+#         friday      = worksheet_data[1][33]
+#         saturday    = worksheet_data[1][34]
+#         sunday      = worksheet_data[1][35]
+#     except IndexError: # Out of bounds if there is no worksheet_data to process
+#         exception = 'Is there a worksheet_data referenced in calendar?.'
+#         write_exception_file(exception, workbook, worksheet_data, configs)
+#
+#     # Placeholders for feed dates in spreadsheet are ignored.
+#     end_date    = configs.feed_end_date
+#     if configs.feed_start_date:
+#         start_date  = configs.feed_start_date
+#         start, end = check_calendar_length(start_date, end_date, configs.delta_max)
+#     else:
+#         # TODO Coordinate this start date with GtfsCalendar start date.
+#         start_date = pd.datetime.today().strftime('%Y%m%d')
+#         start, end = check_calendar_length(start_date, configs.feed_end_date, configs.delta_max)
+#
+#
+#     calendar_info = '{},{},{},{},{},{},{},{},{},{}\n'.format(service_id, monday, tuesday,
+#                                                              wednesday, thursday, friday, saturday, sunday,
+#                                                              start, end)
+#
+#     if not service_id and not monday and not tuesday and not wednesday and not thursday and not friday and not saturday and not sunday:
+#         # If any required value is empty write exception and continue loop
+#         exception = 'Required value missing in calendar.'
+#         write_exception_file(exception, workbook, worksheet_data, configs)
+#
+#     # Open and append to existing file
+#     gtfs_file = os.path.join(wrkbk_wrksht_output_dir, 'calendar.txt')
+#     f = open(gtfs_file, "a+")
+#     f.write('{}'.format(calendar_info))
+#     f.close()
+#
+#     print('Writing calendar.txt to {}'.format(gtfs_file))
 
 
 class UsaWvCalendar(AbstractHolidayCalendar):
