@@ -53,6 +53,7 @@ def unify_holiday_names(configs):
     :param configs: From config file, contains the list of holidays
     :return: List containing unified holiday names
     """
+    # TODO write unify code
 
 
 def get_dates(start, end, configs):
@@ -117,7 +118,7 @@ def check_calendar_length(start, end, configs):
     start = pd.Timestamp(start)
     end   = pd.Timestamp(end)
     delta = end - start
-    print (' From check_calendar_length - delta days between start and stop:{}'.format(delta))
+    # print (' From check_calendar_length - delta days between start and stop:{}'.format(delta))
     # If a delta max is specified in the configuration file use it, else default to 1 year.
     if configs.delta_max:
         offset = int(configs.delta_max)
@@ -155,7 +156,7 @@ def select_agency_calendar_dates(calendar, configs):
     for index, day in enumerate(calendar):
         print('From all holidays index:{} day:{}'.format(index, day))
         if calendar.values[index] in holiday_list:
-            print(colored(' >>> Found my date:{}  my holiday:{}'.format(calendar.index[index].strftime('%Y%m%d'), calendar.values[index]), color='green'))
+            # print(colored(' >>> Found my date:{}  my holiday:{}'.format(calendar.index[index].strftime('%Y%m%d'), calendar.values[index]), color='green'))
             dates.append(calendar.index[index])
     return dates
 

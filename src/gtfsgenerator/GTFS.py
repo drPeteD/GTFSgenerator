@@ -43,7 +43,7 @@ class GtfsHeader():
     def shapes(self):
         shapes          = 'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled'
         # Distance from previous point removed from shape.txt
-        # shapes          = 'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled,dist_from_previous'
+        # shapes          = 'shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence,shape_dist_traveled'
         return shapes
 
     def routes(self):
