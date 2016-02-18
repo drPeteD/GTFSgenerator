@@ -311,7 +311,7 @@ def write_stop_times_file(workbook, worksheet_title, rows, columns, stops, works
                     else:
                         departure_time = '{}:{}:{}'.format( hour[0], hour[1], hour[2])
                     print('Handle time past midnight, time is {}.'.format(departure_time))
-                print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
+                # print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
                 arrival_time = departure_time
             else:
                 departure_time  = ''
@@ -387,8 +387,6 @@ def write_trips_file(trip_id, worksheet_title, workbook, worksheet, configs):
             value.append(worksheet[1][i])
         else:
             value.append('')
-
-    # print('write_stop_times --> value list:{} '.format(value))
 
     route_id = '{}'.format(value[0])
     service_id = '{}'.format(value[1])
@@ -1293,13 +1291,15 @@ def combine_files(wrkbk_dict, configs):
 
         for key, value in wrkbk_dict.items():
             print('Workbook {} has {} worksheets:'.format(key, len(wrkbk_dict[key])))
-            input_dir = get_worksheet_name_output_dir(key, value, configs)
-            infilename = os.path.join(input_dir, gtfs_file + '.txt')
-            # Combine lines in fin and fout
-            with open(outfilename_tmp, 'a') as fout, fileinput.input(infilename) as fin:
-                for line in fin:
-                    fout.write(line)
-                fout.close()
+            for i in range(len(value)):
+                print('key:{} value:{}'.format(key,value[i]))
+                input_dir = get_worksheet_name_output_dir(key, value[i], configs)
+                infilename = os.path.join(input_dir, gtfs_file + '.txt')
+                # Combine lines in fin and fout
+                with open(outfilename_tmp, 'a') as fout, fileinput.input(infilename) as fin:
+                    for line in fin:
+                        fout.write(line)
+                    fout.close()
 
         # ref: http://stackoverflow.com/questions/1215208/how-might-i-remove-duplicate-lines-from-a-file
         lines_seen = set() # holds lines already seen
@@ -1359,7 +1359,11 @@ def google_worksheets_by_workbook_to_dict(configs, defaults):
         route_workbook = open_google_workbook(workbook, defaults, configs)
         worksheets = route_workbook.worksheets()
         for worksheet in worksheets:
-            worksheet_dict.setdefault(workbook, []).append(worksheet.title)
+            if workbook not in configs.ignore_sheets:
+                worksheet_dict.setdefault(workbook, []).append(worksheet.title)
+            else:
+                # Skip if in ignore sheets list
+                continue
     return worksheet_dict
 
 
@@ -1406,6 +1410,7 @@ def unpickle_workbook_dictionary(configs):
     workbook_dictionary = pickle.load(open(file_in, 'rb'))
     return workbook_dictionary
 
+
 def copy_file(start_time, configs):
     """
     Copy completed zipped feed file to location in configuration file.
@@ -1425,21 +1430,22 @@ def copy_file(start_time, configs):
 
 def remove_dup_stops(stops):
     """
-    Remove duplicate stops from a stops.txt file
-    :param stops:
-    :return:
+    Remove duplicate stops from a stops.txt file. List to set, sort set, set to list.
+    :param stops: List of stops collected from worksheet.
+    :return: List of stops with duplicates removed.
     """
+
     # List to set
-    print('From remove dups, 1. stops:{} stops \n{}'.format(len(stops), stops))
+    stops_in = len(stops)
+    print('Number of stops in:{}.'.format(len(stops)))
     stop_set = set(stops)
     stop_set = sorted(stop_set)
+    # Set to list
     stops = list(stop_set)
-    print('From remove dups, 2. stops:{} stops \n{}'.format(len(stops),stops))
+    stops_out = len(stops)
+    stops_removed = int(stops_in) - int(stops_out)
+    print('Number of stops removed:{}, stops input:{} stops returned:{}'.format(stops_removed, stops_in, stops_out ))
 
-    # Could use .add for iterables.
-    # stop_set = set()
-    # for stop in stops:
-    #     stop_set.add(stop)
     return stops
 
 
@@ -1529,13 +1535,8 @@ def main (argv=None):
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             # Call the function to test
 
-            # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
-            workbook = 'KRT_Saturday'
-            worksheet = '23_in'
-
-            folder_path = os.path.join(os.path.expanduser(configs.gtfs_path_root),workbook,worksheet)
-            filename = worksheet + '.zip'
-            run_validator(folder_path, filename, configs)
+            wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
+            combine_files(wrkbk_dict, configs)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         elif configs.generate is True:

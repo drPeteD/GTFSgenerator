@@ -28,7 +28,6 @@ def ServiceExceptions(configs):
     holiday_list    = configs.holidays
     delta_max       = configs.delta_max
 
-    # TODO 'process' the holiday text to remove white space and apostrophes
     if not start_date:
         print(colored('No start date, assuming today.', 'red'))
         start_date = pd.datetime.today().strftime('%Y%m%d')
@@ -167,69 +166,6 @@ def election_observance(dt):
         return dt
     else:
         return dt + pd.DateOffset(weekday=TU(1))
-
-
-# TODO move write to GtfsCalendar
-# def write_calendar_file(workbook, worksheet_title, worksheet_data, configs):
-#     '''
-#     Write a service calendar derived from the worksheet_data entries.
-#         Creates a service exception for the calendar service_id for each Holiday specified in the Config file.
-#
-#     :param worksheet_title: Used to generate complete path to worksheet_data feed file.
-#     :param worksheet_data: Read the service_id and service DOW. Service dates are ignored as they are read from the Config.
-#     :param configs:
-#     :return:
-#     '''
-#
-#     wrkbk_wrksht_output_dir = get_worksheet_name_output_dir(workbook, worksheet_title, configs)
-#
-#     # File header
-#     x = GtfsHeader()
-#     x.write_header('calendar', wrkbk_wrksht_output_dir)
-#
-#     # REMEMBER Python counts begin at zero!
-#     # Worksheet data is in the third row; retrieved as the second list of row data.
-#     # Address the nested list-static data as list[1] (second list)
-#     try:
-#         service_id  = worksheet_data[1][28]
-#         monday      = worksheet_data[1][29]
-#         tuesday     = worksheet_data[1][30]
-#         wednesday   = worksheet_data[1][31]
-#         thursday    = worksheet_data[1][32]
-#         friday      = worksheet_data[1][33]
-#         saturday    = worksheet_data[1][34]
-#         sunday      = worksheet_data[1][35]
-#     except IndexError: # Out of bounds if there is no worksheet_data to process
-#         exception = 'Is there a worksheet_data referenced in calendar?.'
-#         write_exception_file(exception, workbook, worksheet_data, configs)
-#
-#     # Placeholders for feed dates in spreadsheet are ignored.
-#     end_date    = configs.feed_end_date
-#     if configs.feed_start_date:
-#         start_date  = configs.feed_start_date
-#         start, end = check_calendar_length(start_date, end_date, configs.delta_max)
-#     else:
-#         # TODO Coordinate this start date with GtfsCalendar start date.
-#         start_date = pd.datetime.today().strftime('%Y%m%d')
-#         start, end = check_calendar_length(start_date, configs.feed_end_date, configs.delta_max)
-#
-#
-#     calendar_info = '{},{},{},{},{},{},{},{},{},{}\n'.format(service_id, monday, tuesday,
-#                                                              wednesday, thursday, friday, saturday, sunday,
-#                                                              start, end)
-#
-#     if not service_id and not monday and not tuesday and not wednesday and not thursday and not friday and not saturday and not sunday:
-#         # If any required value is empty write exception and continue loop
-#         exception = 'Required value missing in calendar.'
-#         write_exception_file(exception, workbook, worksheet_data, configs)
-#
-#     # Open and append to existing file
-#     gtfs_file = os.path.join(wrkbk_wrksht_output_dir, 'calendar.txt')
-#     f = open(gtfs_file, "a+")
-#     f.write('{}'.format(calendar_info))
-#     f.close()
-#
-#     print('Writing calendar.txt to {}'.format(gtfs_file))
 
 
 class UsaWvCalendar(AbstractHolidayCalendar):
