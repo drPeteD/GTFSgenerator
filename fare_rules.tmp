@@ -1,0 +1,3 @@
+fare_id,route_id,origin_id,destination_id,contains_id
+krt_day_pass,,,,
+krt_one_trip,,,,

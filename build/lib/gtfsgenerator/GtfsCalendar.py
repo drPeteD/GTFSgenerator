@@ -1,9 +1,11 @@
+#!/usr/bin/env python
+
 __author__ = 'Dr. Pete Dailey'
 
 # Import Pandas
 import pandas as pd
 from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
-from pandas.tseries.holiday import MO, TU, TH, FR, nearest_workday
+from pandas.tseries.holiday import TU, FR, nearest_workday
 from pandas.tseries.offsets import *
 from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
 from termcolor import colored
@@ -26,20 +28,18 @@ def ServiceExceptions(configs):
     start_date      = configs.feed_start_date
     end_date        = configs.feed_end_date
     holiday_list    = configs.holidays
+    delta_max       = configs.delta_max
 
-    # TODO 'process' the holiday text to remove white space and apostrophes
     if not start_date:
         print(colored('No start date, assuming today.', 'red'))
         start_date = pd.datetime.today().strftime('%Y%m%d')
-        delta_max = 364
     if not end_date:
         print(colored('No end date, adding delta of {} to start.', 'red').format(delta_max))
         end_date = pd.datetime(start_date) + pd.DateOffset(days=delta_max)
-        delta_max = 364
     if not holiday_list:
         print(colored('No holidays specified.', 'red'))
 
-    cal_dates = get_dates(start_date, end_date, delta_max, configs)
+    cal_dates = get_dates(start_date, end_date, configs)
 
     return cal_dates
 
@@ -54,24 +54,26 @@ def unify_holiday_names(configs):
     :param configs: From config file, contains the list of holidays
     :return: List containing unified holiday names
     """
+    # TODO write unify code
 
 
-def get_dates(start, end, delta_max, configs):
+def get_dates(start, end, configs):
     """
     This function retrieves every holiday date refined in the UsaWvCalendar class the between the dates specified.
-    :param begin_date: Holiday calendar begining date
-    :param end: Holiday calenday ending date
+    :param begin_date: Holiday calendar begining date in datetime-like string
+    :param end: Holiday calenday ending date in a datetime-like string
     :param dt_max: Maximum days between begining and end - GTFS feed not allowed to be > 365 days.
     :param configs: contains a list of holidays
     :return: cal_dates, a list of strings containing the holidays in GTFS date format.
     """
 
     holiday_list = configs.holidays
-    start = pd.Timestamp(start)
-    end   = pd.Timestamp(end)
-    print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start.strftime('%Y%m%d'), end.strftime('%Y%m%d'), delta_max))
+    delta_max   = configs.delta_max
+    # start = pd.Timestamp(start)
+    # end   = pd.Timestamp(end)
+    print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start, end, delta_max))
 
-    my_calendar = determine_calendar_dates(start, end, delta_max)
+    my_calendar = determine_calendar_dates(start, end, configs)
     # print('  from GtfsCalendar.getDates my_calendar\n{}'.format(vars(my_calendar)))
     my_dates = select_agency_calendar_dates(my_calendar, configs)
 
@@ -87,7 +89,7 @@ def get_dates(start, end, delta_max, configs):
     return cal_dates
 
 
-def determine_calendar_dates(start_date, end_date, delta_max):
+def determine_calendar_dates(start_date, end_date, configs):
     """
     This function determines all the holidays defined in the USA-WV Calendar class between the start and end dates.
     :param start_date:
@@ -97,30 +99,49 @@ def determine_calendar_dates(start_date, end_date, delta_max):
     """
 
     cal = UsaWvCalendar()
-    start, end = check_calendar_length(start_date, end_date, delta_max)
+    start, end = check_calendar_length(start_date, end_date, configs)
     calendar = cal.holidays(start, end, return_name=True)
 
     return calendar
 
 
-def check_calendar_length(start, end, max_length):
+def check_calendar_length(start, end, configs):
     """
     This function checks the number of days between the start and stop dates, if greater than the max_length, the
         end date is calculated from the start date.
-    :param start: starting date of the calendar
+    :param start: starting date of the calendar in a datetime-like
     :param end: ending date of the calendar
     :param max_length: maximum number of days from start to end
     :return: start and stop dates for calendar determination.
     """
 
+    # Text to Pandas Timestamps
+    start = pd.Timestamp(start)
+    end   = pd.Timestamp(end)
     delta = end - start
-    print (' From check_calendar_length - delta days between start and stop:{}'.format(delta))
-    if delta > pd.Timedelta(days=int(max_length)):
-        new_end = DateOffset(days=364) + start
-        print(colored(('Start to end length exeeded, {} days, max is {}'.format(delta, max_length)),color='red'))
+    # print (' From check_calendar_length - delta days between start and stop:{}'.format(delta))
+    # If a delta max is specified in the configuration file use it, else default to 1 year.
+    if configs.delta_max:
+        offset = int(configs.delta_max)
     else:
-        new_end = end
-    print(colored(' >> New start date is {}, end date is {}.'.format(start.strftime('%Y%m%d'), new_end.strftime('%Y%m%d')), color='green'))
+        offset = 365
+    # If the the start and end days are greater than the configuration file maximum, add the configuration maximum days
+    #   to the start date. *** GTFS feedfiles can not exceed 1 year.
+    if delta > pd.Timedelta(days=offset):
+        new_end = start + DateOffset(days=int(configs.delta_max))
+        print(colored(('Start to end length exeeded, calculated {} days, max is {} days.'.format\
+                           (delta, configs.delta_max)),color='red'))
+        # TODO write exception
+        start   = start.strftime('%Y%m%d')
+        new_end = new_end.strftime('%Y%m%d')
+    # Start and Stop are good, return unchanged.
+    else:
+        start   = start.strftime('%Y%m%d')
+        new_end = end.strftime('%Y%m%d')
+
+    print(colored(' >> New start date is {}, end date is {}.'.format(start, new_end), color='green'))
+
+    # Return start and end as GTFS formated date strings
     return start, new_end
 
 
@@ -134,9 +155,9 @@ def select_agency_calendar_dates(calendar, configs):
     holiday_list = configs.holidays
     dates = []
     for index, day in enumerate(calendar):
-        print('From all holidays index:{} day:{}'.format(index, day))
+        # print('From all holidays index:{} day:{}'.format(index, day))
         if calendar.values[index] in holiday_list:
-            print(colored(' >>> Found my date:{}  my holiday:{}'.format(calendar.index[index].strftime('%Y%m%d'), calendar.values[index]), color='green'))
+            # print(colored(' >>> Found my date:{}  my holiday:{}'.format(calendar.index[index].strftime('%Y%m%d'), calendar.values[index]), color='green'))
             dates.append(calendar.index[index])
     return dates
 
@@ -147,6 +168,18 @@ def election_observance(dt):
         return dt
     else:
         return dt + pd.DateOffset(weekday=TU(1))
+
+
+def diplay_holidays():
+    """
+    Display the names of holidays in the xxxCalendar class.
+    :return:
+    """
+    start       = pd.datetime.today().strftime('%Y%m%d')
+    end         = pd.datetime(start) + pd.DateOffset(days=366)
+    cal         = UsaWvCalendar()
+    calendar = cal.holidays(start, end, return_name=True)
+    print(calendar)
 
 
 class UsaWvCalendar(AbstractHolidayCalendar):

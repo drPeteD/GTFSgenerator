@@ -7,7 +7,7 @@ from distutils.core import setup
 
 setup(
         name='gtfsgenerator',
-        version='0.9.2',
+        version='0.9.4',
         packages=['gtfsgenerator'],
         package_dir={'': 'src'},
         url='',

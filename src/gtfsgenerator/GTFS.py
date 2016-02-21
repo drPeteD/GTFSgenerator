@@ -1,5 +1,9 @@
+#!/usr/bin/env python
+
 __author__ = 'dr.pete.dailey'
 
+import fileinput
+import glob
 import os
 
 class GtfsHeader():
@@ -13,7 +17,10 @@ class GtfsHeader():
     '''
 
     def __init__ (self):
-    # Anything to init?
+        # Anything to init?
+        # self.gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes',\
+        #                  'shapes','stop_times','stops','trips']
+        # return self.gtfs_filelist
         pass
 
     def agency(self):
@@ -62,7 +69,7 @@ class GtfsHeader():
         trips           = 'route_id,service_id,trip_id,trip_headsign,trip_short_name,direction_id,block_id,shape_id,wheelchair_accessible,bikes_allowed'
         return trips
 
-    def write_header(self, filename, worksheet_name_dir):
+    def write_header(self, filename, path):
         '''
         Write the GTFS header file for the specified file name (agency, shapes, routes, etc)
             to the root (+ addln folder). Overwrite existing file.
@@ -93,24 +100,78 @@ class GtfsHeader():
             header = self.trips()
 
         # Open and overwrite existing file:
-        print('{}--> <<< Does directory {} exist? {}'.format(filename, worksheet_name_dir, os.path.exists(worksheet_name_dir)))
-        if os.path.exists(worksheet_name_dir):
-            # print(colored('  >>> Directory exists:{} <<<'.format(worksheet_name_dir)),color='green')
-            print('  >>> Directory exists:{} <<<'.format(worksheet_name_dir))
-
+        # print('{}--> <<< Does directory {} exist? {}'.format(filename, path, os.path.exists(path)))
+        if os.path.exists(path):
+            # print('  >>> Directory exists:{} <<<'.format(path))
+            pass
         else:
-            os.makedirs(worksheet_name_dir)
-            # print(colored('  >>> Created directory:{} <<<'.format(worksheet_name_dir)),color='red')
-            print('  >>> Created directory:{} <<<'.format(worksheet_name_dir))
+            os.makedirs(path)
+            # print('  >>> Created directory:{} <<<'.format(path))
 
         filename = filename + '.txt'
-        f = open(os.path.join( worksheet_name_dir, filename ), 'w')
+        f = open(os.path.join(path, filename), 'w')
         f.write('{}\n'.format(header))
         f.close()
 
-class GTFSWrite():
+    def return_header(self, filename):
+        # Get file header
+        if filename == 'agency':
+            header = self.agency()
+        elif filename == 'calendar':
+            header = self.calendar()
+        elif filename == 'calendar_dates':
+            header = self.calendar_dates()
+        elif filename == 'fare_attributes':
+            header = self.fare_attributes()
+        elif filename == 'fare_rules':
+            header = self.fare_rules()
+        elif filename == 'feed_info':
+            header = self.feed_info()
+        elif filename == 'shapes':
+            header = self.shapes()
+        elif filename == 'routes':
+            header = self.routes()
+        elif filename == 'stop_times':
+            header = self.stop_times()
+        elif filename == 'stops':
+            header = self.stops()
+        elif filename == 'trips':
+            header = self.trips()
+        return header
+
+    def remove_head_line(self, gtfs_file, path):
+        """
+        Remove and replace GTFS header in a GTFS file.
+        :param gtfs_file: GTFS file name, ie., stops, stop_times, trips.
+        :param path: Input file path, combined feed files.
+        :return:
+        """
+        out_list = []
+        header = GtfsHeader.return_header(self, gtfs_file).strip()
+        in_file = os.path.join(os.path.expanduser(path), '{}.tmp'.format(gtfs_file))
+
+        lines = open(in_file).readlines()
+        cnt = 0
+        for line in lines:
+            if header in line:
+                cnt += 1
+                print('>>> Found header {} in {}.'.format(cnt, gtfs_file))
+                lines.remove(line)
+        # out_list.append(header.strip())
+
+        for line in lines:
+            out_list.append(line.strip())
+        out_file = in_file
+
+        f = open(out_file, 'w')
+        for line in out_list:
+            f.write('{}\n'.format(line.strip()))
+        f.close()
+
+
+class GtfsWrite():
     '''
-    The Write class appends data to GTFS files.
+    The Write class manipulatesa GTFS files.
 
      Attributes:
         name: gtfs file name (without the 'txt' extension)
@@ -119,5 +180,82 @@ class GTFSWrite():
     '''
 
     def __init__(self):
-        pass
 
+        self.gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes',\
+                 'shapes','stop_times','stops','trips']
+
+
+    def remove_dup_lines(self, in_file):
+        """
+        Remove duplication lines from a GTFS file. Optionaly finding and replacing header at top of file.
+        :param replace_head: Boolean to replace GTFS file header.
+        :param gtfs_file: GTFS file name.
+        :param in_file: Path to file.
+        :return:
+        """
+        lines = open(in_file, 'r').readlines()
+        lines_in = len(lines)
+        lines_set = sorted(set(lines))
+        lines = list(lines_set)
+        lines_out = len(lines)
+        lines_removed = int(lines_in ) - int( lines_out)
+        print('Lines removed:{}, lines in_file:{} lines returned:{}'.format(lines_removed, lines_in, lines_out))
+        out_file = in_file
+        out = open( out_file, 'w' )
+        for line in lines_set:
+            out.write(line)
+        out.close()
+
+    def combine_files(self, wrkbk_dict, configs):
+        '''
+        Combine individual GTFS files from wrkbk_dict.
+            module 'fileinput'
+        :param wrkbk_dict: Dictionary of workbook/worksheet pairs.
+        :return:
+        '''
+
+        gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes','shapes',
+                     'stop_times','stops','trips']
+
+
+
+
+        for gtfs_file in gtfs_filelist:
+
+            gtfs_tmp = '{}.tmp'.format(gtfs_file)
+            out_path = os.path.expanduser(configs.gtfs_path_root)
+            out_tmp = os.path.join(out_path, gtfs_tmp)
+            gtfs_master = '{}.txt'.format(gtfs_file)
+
+            # Combine gtfs_files for all wrkbk_dict
+            # ref:http://stackoverflow.com/questions/13613336/python-concatenate-text-files
+            # ref os glob tool: http://www.diveintopython3.net/comprehensions.html
+
+            for key, value in wrkbk_dict.items(): #iterate across workbooks
+                print('Combine workbook {} with {} worksheets:'.format(key, len(wrkbk_dict[key])))
+                # iterate across worksheets in workbook for each gtfs file
+                for i in range(len(value)):
+                    print('Retreive Workbook:{} Worksheet:{} GTFS file:{}.txt'.format(key,value[i], gtfs_file))
+
+                    # Construct the input file path to trip group locations - e.g., gtfs/workbook/worksheet/gtfs.txt.
+                    input_dir = os.path.join(os.path.expanduser(configs.gtfs_path_root), key, value[i] )
+                    infile = os.path.join(input_dir, '{}.txt'.format(gtfs_file))
+
+                    # Combine lines in fin and fout
+                    with open(out_tmp, 'a') as fout, fileinput.input(infile) as fin:
+                        for line in fin:
+                            fout.write(line)
+                        fout.close()
+                fout = open(out_tmp, 'a')
+                # Remove duplicate lines, remove headers.
+                x = GtfsHeader()
+                x.remove_head_line(gtfs_file, out_path)
+                print('Removing duplicate lines from {}.'.format(gtfs_tmp))
+                GtfsWrite.remove_dup_lines(self, os.path.join(out_path, gtfs_tmp))
+                x.write_header(gtfs_file, out_path)
+                fout.close()
+                with open(os.path.join(out_path, gtfs_master), 'a') as fout, fileinput.input(os.path.join(out_path, gtfs_tmp), 'r') as fin:
+                    for line in fin:
+                        fout.write(line)
+                    fout.close()
+                os.remove(os.path.join(out_path, '{}.tmp'.format(gtfs_file)))

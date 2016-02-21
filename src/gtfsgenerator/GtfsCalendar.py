@@ -1,9 +1,11 @@
+#!/usr/bin/env python
+
 __author__ = 'Dr. Pete Dailey'
 
 # Import Pandas
 import pandas as pd
 from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
-from pandas.tseries.holiday import MO, TU, TH, FR, nearest_workday
+from pandas.tseries.holiday import TU, FR, nearest_workday
 from pandas.tseries.offsets import *
 from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
 from termcolor import colored
@@ -153,7 +155,7 @@ def select_agency_calendar_dates(calendar, configs):
     holiday_list = configs.holidays
     dates = []
     for index, day in enumerate(calendar):
-        print('From all holidays index:{} day:{}'.format(index, day))
+        # print('From all holidays index:{} day:{}'.format(index, day))
         if calendar.values[index] in holiday_list:
             # print(colored(' >>> Found my date:{}  my holiday:{}'.format(calendar.index[index].strftime('%Y%m%d'), calendar.values[index]), color='green'))
             dates.append(calendar.index[index])
@@ -166,6 +168,18 @@ def election_observance(dt):
         return dt
     else:
         return dt + pd.DateOffset(weekday=TU(1))
+
+
+def diplay_holidays():
+    """
+    Display the names of holidays in the xxxCalendar class.
+    :return:
+    """
+    start       = pd.datetime.today().strftime('%Y%m%d')
+    end         = pd.datetime(start) + pd.DateOffset(days=366)
+    cal         = UsaWvCalendar()
+    calendar = cal.holidays(start, end, return_name=True)
+    print(calendar)
 
 
 class UsaWvCalendar(AbstractHolidayCalendar):
