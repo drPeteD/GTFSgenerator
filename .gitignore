@@ -9,6 +9,7 @@
 
 # User-specific stuff:
 /.gitignore
+.DS_Store
 /test/hat
 /test/krt
 # .idea/workspace.xml
