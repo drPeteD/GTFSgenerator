@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>FeedValidator: 23_in.zip</title>
+<title>FeedValidator: krt.zip</title>
 <style>
 body {font-family: Georgia, serif; background-color: white}
 .path {color: gray}
@@ -25,107 +25,42 @@ th.header {text-align: right; font-weight: normal; color: gray}
 </head>
 <body>
 GTFS validation results for feed:<br>
-<code><span class="path">/Users/pete/gtfs_feed_files/krt/gtfs/KRT_Saturday/23_in/</span><b>23_in.zip</b></code><br>
+<code><span class="path">test/krt/gtfs/</span><b>krt.zip</b></code><br>
 FeedValidator extension used: None
 <br><br>
 <table>
 <tr><th class="header">Agencies:</th><td class="header"><a href="http://www.rideonkrt.com">Kanawha Valley Regional Transportation Authority</a></td></tr>
-<tr><th class="header">Routes:</th><td class="header">1</td></tr>
-<tr><th class="header">Stops:</th><td class="header">32</td></tr>
-<tr><th class="header">Trips:</th><td class="header">8</td></tr>
-<tr><th class="header">Shapes:</th><td class="header">0</td></tr>
-<tr><th class="header">Effective:</th><td class="header">February 16, 2016 to February 15, 2017</td></tr>
+<tr><th class="header">Routes:</th><td class="header">21</td></tr>
+<tr><th class="header">Stops:</th><td class="header">476</td></tr>
+<tr><th class="header">Trips:</th><td class="header">470</td></tr>
+<tr><th class="header">Shapes:</th><td class="header">5</td></tr>
+<tr><th class="header">Effective:</th><td class="header">February 20, 2016 to February 19, 2017</td></tr>
 </table>
 <br>
-During the upcoming service dates Tue Feb 16 to Fri Apr 15:
+During the upcoming service dates Sun Feb 21 to Wed Apr 20:
 <table>
-<tr><th class="header">Average trips per date:</th><td class="header">1</td></tr>
-<tr><th class="header">Most trips on a date:</th><td class="header">8, on 8 service dates (Sat Feb 20, Sat Feb 27, Sat Mar 05, ...)</td></tr>
-<tr><th class="header">Least trips on a date:</th><td class="header">0, on 52 service dates (Tue Feb 16, Wed Feb 17, Thu Feb 18, ...)</td></tr>
+<tr><th class="header">Average trips per date:</th><td class="header">62</td></tr>
+<tr><th class="header">Most trips on a date:</th><td class="header">470, on 8 service dates (Sat Feb 27, Sat Mar 05, Sat Mar 12, ...)</td></tr>
+<tr><th class="header">Least trips on a date:</th><td class="header">0, on 52 service dates (Sun Feb 21, Mon Feb 22, Tue Feb 23, ...)</td></tr>
 </table>
 <br>
-<h3 class="issueHeader">Notices:</h3><h4 class="issueHeader"><a name="NoticeNewVersionAvailable">New Version Available</a></h4><ul>
-<li><div class="problem notice">A new version 1.2.15 of transitfeed is available. Please visit <a href="https://github.com/google/transitfeed">https://github.com/google/transitfeed</a> and download the newest release.</div><br></li>
-</ul>
 <span class="fail">Found these problems:</span>
 <table class="count_outside">
-<tr><td><span class="fail">284 errors</span></td><td><span class="fail">40 warnings</span></td></tr>
+<tr><td><span class="fail">2 warnings</span></td></tr>
 <tr><td>
-<table><tr><td>3</td><td><a href="#ErrorDuplicateID">Duplicate IDs</a></td></tr>
-<tr><td>281</td><td><a href="#ErrorInvalidValue">Invalid Values</a></td></tr>
-</table>
-</td>
-<td>
-<table><tr><td>8</td><td><a href="#WarningOtherProblem">Other Problems</a></td></tr>
-<tr><td>32</td><td><a href="#WarningUnusedStop">Unused Stops</a></td></tr>
+<table><tr><td>2</td><td><a href="#WarningStopsTooClose">Stops Too Closes</a></td></tr>
 </table>
 </td>
 </table>
 <br><br>
-<h3 class="issueHeader">Errors:</h3><h4 class="issueHeader"><a name="ErrorDuplicateID">Duplicate ID</a></h4><ul>
-<li><div class="problem">Duplicate ID 6023 in column <code>stop_id</code></div>in line 13 of <code>stops.txt</code><br>
-<table class="dump"><tr><th class="problem">stop_id</th><th>stop_code</th><th>stop_name</th><th>stop_desc</th><th>stop_lat</th><th>stop_lon</th><th>zone_id</th><th>stop_url</th><th>location_type</th><th>parent_station</th><th>stop_timezone</th><th>wheelchair_boarding</th></tr>
-<tr><td class="problem">6023</td><td></td><td>Frame Rd & Little Sandy Rd</td><td></td><td>38.45735</td><td>-81.49694</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Duplicate ID 6022 in column <code>stop_id</code></div>in line 14 of <code>stops.txt</code><br>
-<table class="dump"><tr><th class="problem">stop_id</th><th>stop_code</th><th>stop_name</th><th>stop_desc</th><th>stop_lat</th><th>stop_lon</th><th>zone_id</th><th>stop_url</th><th>location_type</th><th>parent_station</th><th>stop_timezone</th><th>wheelchair_boarding</th></tr>
-<tr><td class="problem">6022</td><td></td><td>Frame Rd & Old Frame Rd</td><td></td><td>38.44806</td><td>-81.48319</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Duplicate ID 23004 in column <code>stop_id</code></div>in line 15 of <code>stops.txt</code><br>
-<table class="dump"><tr><th class="problem">stop_id</th><th>stop_code</th><th>stop_name</th><th>stop_desc</th><th>stop_lat</th><th>stop_lon</th><th>zone_id</th><th>stop_url</th><th>location_type</th><th>parent_station</th><th>stop_timezone</th><th>wheelchair_boarding</th></tr>
-<tr><td class="problem">23004</td><td></td><td>Rt 119 & Frame Rd</td><td></td><td>38.4428</td><td>-81.48014</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
+<h3 class="issueHeader">Warnings:</h3><h4 class="issueHeader"><a name="WarningStopsTooClose">Stops Too Close</a></h4><ul>
+<li><div class="problem">The stops "Gordon Dr & Dabney Dr" (ID 18011) and "Columbia Pipeline Group" (ID 7012) are 0.00m apart and probably represent the same location.</div><br></li>
+<li><div class="problem">The stops "Cross Lanes Dr & Big Tyler Rd" (ID 3075) and "Cross Lanes Dr & Goff Mountain Rd" (ID 3076) are 0.00m apart and probably represent the same location.</div><br></li>
 </ul>
-<h4 class="issueHeader"><a name="ErrorInvalidValue">Invalid Value</a></h4><ul>
-<li><div class="problem">Invalid value  in field <code>route_short_name</code><br>Both route_short_name and route_long name are blank.</div>in line 2 of <code>routes.txt</code><br>
-<table class="dump"><tr><th>route_id</th><th>agency_id</th><th class="problem">route_short_name</th><th>route_long_name</th><th>route_desc</th><th>route_type</th><th>route_url</th><th>route_color</th><th>route_text_color</th></tr>
-<tr><td>R23</td><td>krt</td><td class="problem"></td><td></td><td></td><td>3</td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Invalid value  in field <code>stop_sequence</code><br>This should be a number.</div>in line 2 of <code>stop_times.txt</code><br>
-<table class="dump"><tr><th>trip_id</th><th>arrival_time</th><th>departure_time</th><th>stop_id</th><th class="problem">stop_sequence</th><th>stop_headsign</th><th>pickup_type</th><th>drop_off_type</th><th>shape_dist_traveled</th></tr>
-<tr><td>KRT_Saturday-23_in-a</td><td>6:36:00</td><td>6:36:00</td><td>23006</td><td class="problem"></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Invalid value  in field <code>stop_sequence</code><br>This should be a number.</div>in line 3 of <code>stop_times.txt</code><br>
-<table class="dump"><tr><th>trip_id</th><th>arrival_time</th><th>departure_time</th><th>stop_id</th><th class="problem">stop_sequence</th><th>stop_headsign</th><th>pickup_type</th><th>drop_off_type</th><th>shape_dist_traveled</th></tr>
-<tr><td>KRT_Saturday-23_in-a</td><td></td><td></td><td>23030</td><td class="problem"></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Invalid value  in field <code>stop_sequence</code><br>This should be a number.</div>in line 4 of <code>stop_times.txt</code><br>
-<table class="dump"><tr><th>trip_id</th><th>arrival_time</th><th>departure_time</th><th>stop_id</th><th class="problem">stop_sequence</th><th>stop_headsign</th><th>pickup_type</th><th>drop_off_type</th><th>shape_dist_traveled</th></tr>
-<tr><td>KRT_Saturday-23_in-a</td><td></td><td></td><td>23029</td><td class="problem"></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li><div class="problem">Invalid value  in field <code>stop_sequence</code><br>This should be a number.</div>in line 5 of <code>stop_times.txt</code><br>
-<table class="dump"><tr><th>trip_id</th><th>arrival_time</th><th>departure_time</th><th>stop_id</th><th class="problem">stop_sequence</th><th>stop_headsign</th><th>pickup_type</th><th>drop_off_type</th><th>shape_dist_traveled</th></tr>
-<tr><td>KRT_Saturday-23_in-a</td><td>6:45:00</td><td>6:45:00</td><td>23005</td><td class="problem"></td><td></td><td></td><td></td><td></td></tr></table>
-<br></li>
-<li>and 276 more of this type.</ul>
-<h3 class="issueHeader">Warnings:</h3><h4 class="issueHeader"><a name="WarningOtherProblem">Other Problem</a></h4><ul>
-<li><div class="problem">The trip with the trip_id "KRT_Saturday-23_in-a" doesn't have any stop times defined.</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">The trip with the trip_id "KRT_Saturday-23_in-b" doesn't have any stop times defined.</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">The trip with the trip_id "KRT_Saturday-23_in-c" doesn't have any stop times defined.</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">The trip with the trip_id "KRT_Saturday-23_in-d" doesn't have any stop times defined.</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">The trip with the trip_id "KRT_Saturday-23_in-e" doesn't have any stop times defined.</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li>and 3 more of this type.</ul>
-<h4 class="issueHeader"><a name="WarningUnusedStop">Unused Stop</a></h4><ul>
-<li><div class="problem">Lee St & Court St (ID 3088) isn't used in any trips</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">Rt 119 & Youngs Bottom (ID 23028) isn't used in any trips</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">Bigley Ave & Glen St (ID 19016) isn't used in any trips</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">Crossings Mall (ID 6005) isn't used in any trips</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li><div class="problem">Herbert Hoover High School (ID 23029) isn't used in any trips</div>in line 281 of <code>stop_times.txt</code><br>
-<br></li>
-<li>and 27 more of this type.</ul>
 
 <div class="footer">
 Generated by <a href="https://github.com/google/transitfeed/wiki/FeedValidator">
-FeedValidator</a> version 1.2.14 on February 16, 2016 at 02:04 PM EST.
+FeedValidator</a> version 1.2.15 on February 21, 2016 at 10:27 PM EST.
 </div>
 </body>
 </html>

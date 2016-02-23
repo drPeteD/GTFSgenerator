@@ -45,53 +45,51 @@ class Configuration(object):
         self._config_parser.add_section(section1)
 
         #using njrati.marketing@gmail.com acct. client_id and client_secret
-        self._config_parser.set(section1, 'client_id',
-                                '1048555667168-0t383qagqukq2jn250h7s6gf3utvpjmi.apps.googleusercontent.com')
-        self._config_parser.set(section1, 'client_secret', 'bcs3b4T_IXX4_NDwEpspb5_F')
+        self._config_parser.set(section1, 'client_id',  'get_key_from_google.apps.googleusercontent.com')
+        self._config_parser.set(section1, 'client_secret', 'get_secret_from_Google_dev_dashboard')
         self._config_parser.set(section1, 'client_scope', 'https://www.googleapis.com/auth/drive https://spreadsheets.google.com/feeds https://docs.google.com/feeds')
         self._config_parser.set(section1, 'redirect_uri', 'http://localhost')
         self._config_parser.set(section1, 'oauth_cred_file_name', '.gtfsgenerator.dat')
-        self._config_parser.set(section1, 'bing_api_key',
-                                'Ahstxtcm0xHi2j_FzNLShga3xtBll__EpFGog3usauwf4WpfV4UtaRwlGHw7aCi2')
+        self._config_parser.set(section1, 'bing_api_key', 'api_key_from_Google')
 
         section2 = 'source'
         self._config_parser.add_section(section2)
-        self._config_parser.set(section2, 'source_path', git_root + '/gtfsgenerator-vmd-proj/testing/source')
+        self._config_parser.set(section2, 'source_path', git_root + '/gtfsgenerator/test')
         self._config_parser.set(section2, 'stops_source_file', 'stops.csv')
-        self._config_parser.set(section2, 'workbook_path', git_root + '/gtfsgenerator-cmd-proj/testing/data_source')
-        self._config_parser.set(section2, 'workbook_name', 'woodward_test.xlsx')
+        self._config_parser.set(section2, 'workbook_path', git_root + '/gtfsgenerator/test')
+        self._config_parser.set(section2, 'workbook_name', 'test.xlsx')
         self._config_parser.set(section2, 'google_worksheet', 'some_google_url')
         self._config_parser.set(section2, 'wb_header_idx', '6')
-        self._config_parser.set(section2, 'exceptions_path', git_root + 'gtfs_generator-cmd-proj/testing/output')
-        self._config_parser.set(section2, 'exceptions_filename', 'exceptions.csv')
+        self._config_parser.set(section2, 'exceptions_path', git_root + 'gtfsgenerator/test/reports')
+        self._config_parser.set(section2, 'exceptions_filename', 'exceptions.txt')
 
         section3 = 'gtfs'
         self._config_parser.add_section(section3)
-        self._config_parser.set(section3, 'source_path', git_root + '/gtfsgenerator-vmd-proj/testing/gtfs')
+        self._config_parser.set(section3, 'source_path', git_root + '/gtfsgenerator/test/gtfs')
         self._config_parser.set(section3, 'feed_filename', 'feed_info.txt')
         self._config_parser.set(section3, 'agency_filename', 'agency.txt')
         self._config_parser.set(section3, 'stops_filename', 'stops.txt')
         self._config_parser.set(section3, 'stop_times_filename', 'stop_times.txt')
-        self._config_parser.set(section3, 'dist_units', 'miles')  # choices miles, kilometers
+        self._config_parser.set(section3, 'dist_units', 'miles')  # choices miles, kilometers, feet, meters
 
         section4 = 'agency'
         self._config_parser.add_section(section4)
-        self._config_parser.set(section4, 'agency_name', 'Kanawha Valley Regional Transportation Authority')
-        self._config_parser.set(section4, 'agency_url', 'http://www.rideonkrt.com')
+        self._config_parser.set(section4, 'agency_name', 'My Regional Transportation Authority')
+        self._config_parser.set(section4, 'agency_url', 'http://www.daileyplanet.us')
         self._config_parser.set(section4, 'agency_timezone', 'America/New_York')
-        self._config_parser.set(section4, 'agency_id', 'krt')
+        self._config_parser.set(section4, 'agency_id', 'DrPete')
         self._config_parser.set(section4, 'agency_lang', 'en')
-        self._config_parser.set(section4, 'agency_phone', '(304)343-7586')
-        self._config_parser.set(section4, 'agency_phone', 'http://www.rideonkrt.com/site/fare-info.html')
+        self._config_parser.set(section4, 'agency_phone', '(304)558-9324')
+        self._config_parser.set(section4, 'agency_phone', 'http://www.wv.gov')
 
         section5 = 'feed'
         self._config_parser.add_section(section5)
         self._config_parser.set(section5, 'feed_publisher_name', 'Dr.Pete.Dailey@gmail.com')
-        self._config_parser.set(section5, 'feed_publisher_url', 'http://transit.njrati.org')
+        self._config_parser.set(section5, 'feed_publisher_url', 'http://www.wv.gov')
         self._config_parser.set(section5, 'feed_lang', 'en')
         self._config_parser.set(section5, 'feed_start_date', '20160101')
         self._config_parser.set(section5, 'feed_end_date', '20161231')
-        self._config_parser.set(section5, 'feed_version', '20150624.1')
+        self._config_parser.set(section5, 'feed_version', '20160228.10')
 
         with open(self._default_config_file, 'w') as configfile:
             self._config_parser.write(configfile)

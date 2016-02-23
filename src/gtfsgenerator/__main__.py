@@ -97,16 +97,24 @@ def open_google_workbook(google_workbook_name, defaults, configs):
     :param configs:
     :return:
     """
-    credentials = get_credentials(client_id=defaults.get('client_id'),
-                                  client_secret=defaults.get('client_secret'),
-                                  client_scope=defaults.get('client_scope'),
-                                  redirect_uri=defaults.get('redirect_uri'),
-                                  oauth_cred_file_name=defaults.get('oauth_cred_file_name'))
+    # credentials = get_credentials(client_id=defaults.get('client_id'),
+    #                               client_secret=defaults.get('client_secret'),
+    #                               client_scope=defaults.get('client_scope'),
+    #                               redirect_uri=defaults.get('redirect_uri'),
+    #                               oauth_cred_file_name=defaults.get('oauth_cred_file_name'))
+
+
+    credentials = get_credentials(client_id=configs.client_id,
+                                  client_secret=configs.client_secret,
+                                  client_scope=configs.client_scope,
+                                  redirect_uri=configs.redirect_uri,
+                                  oauth_cred_file_name=configs.oauth_cred_file_name)
+
 
     # Ref: http://www.lovholm.net/2013/11/25/work-programmatically-with-google-spreadsheets-part-2/
+
     gc = gspread.authorize(credentials)
-    # Google workbook name is in the config file. <<< Pass in from config list!
-    # route_workbook = gc.open(configs.google_workbook_name) <<< older single workbook
+    print(gc, dir(gc))
     route_workbook = gc.open(google_workbook_name)
 
     return route_workbook
@@ -1223,95 +1231,6 @@ def print_et (text_color, start_time, title, note, configs):
     write_run_info_to_file(tdelta, title, note, configs)
 
 
-def combine_gtfs_feeds(start_time, stops, worksheet_dict, configs):
-    '''
-        Combine feed files from each worksheet process.
-    1. Identical feed files that require no action:
-        a. agency.txt (from config)
-        b. feed_info.txt (from config)
-        d. fare_attribute (from config)
-        e. fare_rules (from config)
-    2. Feed files that require only concatenation of lines:
-        a. trips.txt
-        b. stop_times.txt
-        c. shapes.txt
-    3. Feed files that require search / add if absent:
-        a. stops.txt
-        b. calendar.txt
-        c. calendar_dates.txt
-        c. routes.txt
-
-    :param worksheet_dict: list of worksheet_dict previously processed
-    :param configs: arguments from the configuration file
-    :return:
-    '''
-
-    print('Starting merge...')
-
-    # Delete existing master GTFS files
-    delete_master(configs)
-    # Combine the worksheet_dict, eliminating duplicate lines
-    combine_files(worksheet_dict, configs)
-    # Zip the master files together
-    agency_ID = configs.agency_id
-    write_stops_gtfs(stops, os.path.expanduser(configs.gtfs_path_root), configs)
-    create_gtfs_zip(os.path.expanduser(configs.gtfs_path_root), agency_ID)
-    # Validate the master
-    path = os.path.expanduser(configs.gtfs_path_root)
-    filename = configs.agency_id
-    run_validator(start_time, path, filename, configs)
-
-
-# def combine_files(wrkbk_dict, configs):
-#     '''
-#     Combine individual GTFS files from wrkbk_dict.
-#         module 'fileinput'
-#     :param wrkbk_dict: Dictionary of workbook/worksheet pairs.
-#     :return:
-#     '''
-#
-#     gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes','shapes',
-#                  'stop_times','stops','trips']
-#
-#     # print('combine_files {} in wrkbk_dict {}'.format(gtfs_filelist, wrkbk_dict))
-#
-#     for gtfs_file in gtfs_filelist:
-#
-#         # ref:http://stackoverflow.com/questions/13613336/python-concatenate-text-files
-#         outfilename_tmp = os.path.join(os.path.expanduser(configs.gtfs_path_root), gtfs_file + '.tmp')
-#         outpath = os.path.expanduser(configs.gtfs_path_root)
-#         outfilename = os.path.join(os.path.expanduser(configs.gtfs_path_root), gtfs_file + '.txt')
-#
-#         # Combine gtfs_files for all wrkbk_dict
-#
-#         # ref os glob tool: http://www.diveintopython3.net/comprehensions.html
-#         #   get the contents of a directory programmatically
-#
-#
-#         for key, value in wrkbk_dict.items(): #iterate across workbooks
-#             print('Workbook {} has {} worksheets:'.format(key, len(wrkbk_dict[key])))
-#             for i in range(len(value)): #iterate across worksheets in workbook
-#                 if not value[i] in configs.ignore_sheets:
-#                     # print('Workbook:{} Worksheet:{} GTFS file:{}.txt'.format(key,value[i], gtfs_file))
-#                     input_dir = get_worksheet_name_output_dir(key, value[i], configs)
-#                     infilename = os.path.join(input_dir, gtfs_file + '.txt')
-#                 # Combine lines in fin and fout
-#                 with open(outfilename_tmp, 'a') as fout, fileinput.input(infilename) as fin:
-#                     for line in fin:
-#                         fout.write(line)
-#                     fout.close()
-#             # Append lines to  master file outfilename.
-#             fout = open(outfilename, 'w')
-#             infilename_tmp = outfilename_tmp
-#             print('combine_files --> infile:{} outfile:{}'.format(infilename_tmp,outfilename))
-#             # Remove duplicate lines, replace header.
-#             replace_head = True
-#             x = GtfsWrite()
-#             x.remove_dup_lines(replace_head, gtfs_file, outpath)
-#         fout.close()
-#         os.remove(infilename_tmp)
-
-
 def delete_master(configs):
     '''
 
@@ -1424,47 +1343,6 @@ def copy_file(start_time, configs):
              note=note, configs=configs)
 
 
-def remove_head_line( gtfs_file, configs ):
-    # ref: http://stackoverflow.com/questions/3061/calling-a-function-of-a-module-from-a-string-with-the-functions-name-in-python
-
-    out_list = []
-    head = GtfsHeader()
-    header = head.return_header(gtfs_file).strip()
-    print(header)
-    in_file = os.path.join(os.path.expanduser(configs.gtfs_path_root), '{}.txt'.format(gtfs_file))
-    out_file = os.path.join(os.path.expanduser(configs.gtfs_path_root), '{}.tmp'.format(gtfs_file))
-    lines = open(in_file).readlines()
-    for line in lines:
-        if header in line:
-            lines.remove(line)
-    out_list.append(header.strip())
-    for line in lines:
-        out_list.append(line.strip())
-    f = open(out_file, 'w')
-    for line in out_list:
-        f.write('{}\n'.format(line.strip()))
-    f.close()
-
-
-# def remove_dup_lines(replace_head, gtfs_file, configs):
-#
-#     # ref: http://stackoverflow.com/questions/15830290/remove-duplicates-from-text-file
-#
-#     lines = open(gtfs_file, 'r').readlines()
-#     lines_in = len(lines)
-#     # Lines to sorted set
-#     lines_set = sorted(set(lines))
-#     # Line set to list
-#     lines = list(lines_set)
-#     lines_out = len(lines)
-#     lines_removed = int(lines_in) - int(lines_out)
-#     if replace_head:
-#         remove_head_line(gtfs_file, configs)
-#     print('Number of line removed:{}, lines input:{} lines returned:{}'.format(lines_removed, lines_in, lines_out ))
-#     out = open(gtfs_file, 'w')
-#     for line in lines_set:
-#         out.write(line)
-
 def read_stops(configs):
     """
     Read a GTFS stops.txt to a list.
@@ -1495,29 +1373,29 @@ def write_proc_sheet_list(p_list, configs):
 
 
 def main (argv=None):
-    # Display the the system path, Python version, and platform that is running.
+    """
+
+    :param argv: Command line directives.
+    None; Reads the default arguments defined in Configuration.py, displaying on stdout then terminates.
+    -- test;
+    -- generate;
+    :return:
+    """
+
     print(sys.path)
     print('Python {} on {}'.format(sys.version, sys.platform))
     print('Hex version is: {}'.format(sys.hexversion))
 
-
-    # Ref: http://stackoverflow.com/questions/3609852/which-is-the-best-way-to-allow-configuration-options-be
-    # -overridden-at-the-comman
-    # Do argv default this way, as doing it in the functional
-    # declaration sets it at compile time.
-# >>>>>>>>> argument processing <<<<<<<<<<
+# >>>>>>>>> Command line argument processing <<<<<<<<<<
 
     if sys.argv is None:
         argv = sys.argv
 
     # Parse any conf_file specification
-    # We make this parser with add_help=False so that
-    # it doesn't parse -h and print help.
+    # Make  parser with add_help=False so no parsing of -h to print help.
 
     config_parser_for_passed_in_config_file = get_config_parser_for_passed_in_config_file()
     configs, remaining_argv = config_parser_for_passed_in_config_file.parse_known_args()
-
-    # gettting the defaults?
 
     defaults = Configuration(configs.config_file).get_defaults()
 
@@ -1535,13 +1413,13 @@ def main (argv=None):
         parser.set_defaults(**defaults)
         parser.add_argument('--version', action='version', version='%(prog)s')
         parser.add_argument('--test', action='store_true', help='test a function')
-        parser.add_argument('--demo', action='store_true', help='demo a module')
+        parser.add_argument('--merge', action='store_true', help=
+            'Merge existing feedfiles from a list of Workbooks/Worksheets specified in a configuration file.')
         parser.add_argument('--generate', action='store_true',
-                            help='generate gtfs format files from a Google spreadsheet containing'
-                                 'turn-by-turn instructions.')
+                            help='generate gtfs format files from a Google spreadsheet containing '
+                                 'turn-by-turn instructions, and KML files.')
 
         configs = parser.parse_args(remaining_argv)
-
         pretty_print_args(configs)
 
         # >>> Test <<< code here
@@ -1564,8 +1442,6 @@ def main (argv=None):
 
             start_time = datetime.now()
             print("generating...\n")
-            # Google workbook; get G_workbook names from configs and worksheets object from the G_workbook.
-            # List all workbooks and worksheets to text file.
             wrkbk_dict = google_worksheets_by_workbook_to_dict(configs, defaults)
             write_workbook_dictionary(wrkbk_dict, configs)
 
@@ -1598,25 +1474,20 @@ def main (argv=None):
                 # print('sheets:{}'.format(sheets))
                 p_sheets   = []
 
-                # Exclude worksheets named Master and Template
+                # Exclude worksheet list, i.e. Master and Template
                 ignore_list = configs.ignore_sheets.split(',')
                 print('ignore list:{}'.format(ignore_list))
 
-                # Create or overwrite exceptions.txt file in the report directory
                 create_exceptions_file(configs)
                 print('Creating exceptions file...')
 
-                # Loop throught the list of worksheet titles in G_worksheets contained in the worksheets object.
+                # Worksheet loop.
                 for worksheet in worksheets:
                     worksheet_title = worksheet.title
+
                     note = '{} start.'.format(worksheet)
 
-                    # Skip the ignore list of worksheets
                     if not worksheet_title in ignore_list:
-
-                        # Process the worksheet title that is in the 'sheets' list.
-                        # TODO Add process_worksheet function
-
                         if worksheet_title in sheets:
 
                             note = '{}'.format('{}.'.format(worksheet_title))
@@ -1624,12 +1495,10 @@ def main (argv=None):
                             print(c_note)
                             print_et(text_color='green', start_time=start_time, title='Begin processing.', note=note, configs=configs)
 
-                            #create_output_dir(configs)
                             create_wrkbk_wrksht_output_dir(workbook_title, worksheet_title, configs=configs)
                             print('Creating output directory...')
 
                             # Required rows: r2=headings(optional) r3=data r6=trip headings from configuration
-                            # Cast list as integer values
 
                             head_data_rows = [int(s) for s in configs.head_data_rows.split(",")]
 
@@ -1759,10 +1628,9 @@ def main (argv=None):
                 print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
                 note = '{}'.format('')
                 print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
-                # TODO Use wrkbk_dict for combination
-                # Need a dictionary of workbook:worksheet values
-                combine_gtfs_feeds(start_time, all_stops, wrkbk_dict, configs)
-                # After combine, overwrite stops.txt with accumulated stops.
+
+                x = GtfsWrite()
+                x.combine_files(wrkbk_dict, configs)
 
             else:
                 # Copy singleton to Agency gtfs root

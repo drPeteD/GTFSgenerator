@@ -3,8 +3,8 @@
 __author__ = 'dr.pete.dailey'
 
 import fileinput
-import glob
 import os
+
 
 class GtfsHeader():
     '''
@@ -180,9 +180,19 @@ class GtfsWrite():
     '''
 
     def __init__(self):
-
         self.gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes',\
                  'shapes','stop_times','stops','trips']
+        self.agency_format = '{},{},{},{},{},{}'
+        self.calendar_format = '{},{},{},{},{},{},{},{},{},{}'
+        self.calendar_dates_format = '{},{},{}'
+        self.fare_attributes_format = '{},{},{},{},{},{}'
+        self.fare_rules_format = '{},{},{},{},{}'
+        self.feed_info_format = '{},{},{},{},{},{}'
+        self.route_format = '{},{},{},{},{},{},{},{},{}'
+        self.shapes_format = line_out = '{}, {:.6f}, {:.6f}, {}, {:.2f}'
+        self.stop_times_format = '{},{},{},{},{},{},{},{},{}'
+        self.stops_format = '{},{},{},{},{},{},{},{},{},{},{},{}'
+        self.trips_format = '{},{},{},{},{},{},{},{},{},{}'
 
 
     def remove_dup_lines(self, in_file):
@@ -206,10 +216,26 @@ class GtfsWrite():
             out.write(line)
         out.close()
 
+
     def combine_files(self, wrkbk_dict, configs):
         '''
-        Combine individual GTFS files from wrkbk_dict.
-            module 'fileinput'
+        Combine feed files from each worksheet process.
+        1. Identical feed files that require no action:
+            a. agency.txt (from config)
+            b. feed_info.txt (from config)
+            d. fare_attribute (from config)
+            e. fare_rules (from config)
+        2. Feed files that require only concatenation of lines:
+            a. trips.txt
+            b. stop_times.txt
+            c. shapes.txt
+        3. Feed files that require search / add if absent:
+            a. stops.txt
+            b. calendar.txt
+            c. calendar_dates.txt
+            c. routes.txt
+            Combine individual GTFS files from wrkbk_dict.
+                module 'fileinput'
         :param wrkbk_dict: Dictionary of workbook/worksheet pairs.
         :return:
         '''
@@ -259,3 +285,26 @@ class GtfsWrite():
                         fout.write(line)
                     fout.close()
                 os.remove(os.path.join(out_path, '{}.tmp'.format(gtfs_file)))
+
+
+    def write_agency_file(workbook, worksheet_title, configs):
+        '''
+        Write agency.txt from values in configuration file.
+
+        :param worksheet_title: present worksheet name. If none then the 'master' GTFS feed.
+        :param configs: arguments from the configuration file.
+        :return:
+        '''
+
+        wrkbk_wrksht_output_dir = os.path.join(os.path.expanduser(configs.gtfs_path_root), workbook, worksheet_title)
+
+        x = GtfsHeader()
+        x.write_header('agency', wrkbk_wrksht_output_dir)
+
+        print('Writing agency.txt to {}'.format(wrkbk_wrksht_output_dir))
+        agency_info = '{},{},{},{},{},{}'.format(str(configs.agency_id), str(configs.agency_name), str(configs.agency_url),
+                                                 str(configs.agency_timezone), str(configs.agency_lang), str(configs.agency_phone))
+
+        f = open(os.path.join(wrkbk_wrksht_output_dir,'agency.txt'), "a+")
+        f.write('{}\n'.format(agency_info))
+        f.close()
