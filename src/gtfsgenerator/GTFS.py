@@ -171,7 +171,7 @@ class GtfsHeader():
 
 class GtfsWrite():
     '''
-    The Write class manipulatesa GTFS files.
+    The Write class manipulates GTFS files.
 
      Attributes:
         name: gtfs file name (without the 'txt' extension)
