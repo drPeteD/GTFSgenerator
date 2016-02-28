@@ -39,7 +39,7 @@ class Configuration(object):
 
     def _write_default_config(self):
 
-        git_root = os.path.join(os.path.expanduser('~'), 'myGit')
+        git_root = os.path.join(os.path.expanduser('~/Documents'), 'Git')
 
         section1 = 'user'
         self._config_parser.add_section(section1)

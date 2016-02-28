@@ -180,6 +180,10 @@ class GtfsWrite():
     '''
 
     def __init__(self):
+        """
+
+        :return:
+        """
         self.gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes',\
                  'shapes','stop_times','stops','trips']
         self.agency_format = '{},{},{},{},{},{}'
@@ -189,16 +193,14 @@ class GtfsWrite():
         self.fare_rules_format = '{},{},{},{},{}'
         self.feed_info_format = '{},{},{},{},{},{}'
         self.route_format = '{},{},{},{},{},{},{},{},{}'
-        self.shapes_format = line_out = '{}, {:.6f}, {:.6f}, {}, {:.2f}'
+        self.shapes_format  = '{}, {:.6f}, {:.6f}, {}, {:.2f}'
         self.stop_times_format = '{},{},{},{},{},{},{},{},{}'
         self.stops_format = '{},{},{},{},{},{},{},{},{},{},{},{}'
         self.trips_format = '{},{},{},{},{},{},{},{},{},{}'
 
-
     def remove_dup_lines(self, in_file):
         """
-        Remove duplication lines from a GTFS file. Optionaly finding and replacing header at top of file.
-        :param replace_head: Boolean to replace GTFS file header.
+        Remove duplication lines from a GTFS file.
         :param gtfs_file: GTFS file name.
         :param in_file: Path to file.
         :return:
@@ -217,7 +219,7 @@ class GtfsWrite():
         out.close()
 
 
-    def combine_files(self, wrkbk_dict, configs):
+    def merge_files(self, wrkbk_dict, configs):
         '''
         Combine feed files from each worksheet process.
         1. Identical feed files that require no action:
@@ -242,9 +244,6 @@ class GtfsWrite():
 
         gtfs_filelist = ['agency','calendar','calendar_dates','fare_attributes','fare_rules','feed_info','routes','shapes',
                      'stop_times','stops','trips']
-
-
-
 
         for gtfs_file in gtfs_filelist:
 
