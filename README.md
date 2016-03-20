@@ -11,7 +11,7 @@ Instructions on setting up a virtual environment using Python on OS X and Jet Br
 The gtfsgenerator was written for Python version 3.5 and passes configuration and build commands from the command line. For example the command
 
 ```
-gtfsgenerator -c krt.cfg --generate
+gtfsgenerator -c krt.ini --generate
 ```
 
 will generate a GTFS feed using the configuration defined in the file krt.cfg.

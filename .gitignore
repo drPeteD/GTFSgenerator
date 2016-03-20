@@ -1,6 +1,6 @@
 # OS generated files #
 ######################
-.DS_Store
+*.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
@@ -20,26 +20,24 @@ Thumbs.db
 
 # User-specific stuff:
 /.gitignore
-.DS_Store
-/test/hat
-/test/krt
-# .idea/workspace.xml
-# .idea/tasks.xml
-# .idea/dictionaries
+
+ .idea/workspace.xml
+ .idea/tasks.xml
+ .idea/dictionaries
 
 # Sensitive or high-churn files:
-# .idea/dataSources.ids
-# .idea/dataSources.xml
-# .idea/sqlDataSources.xml
-# .idea/dynamic.xml
-# .idea/uiDesigner.xml
+ .idea/dataSources.ids
+ .idea/dataSources.xml
+ .idea/sqlDataSources.xml
+ .idea/dynamic.xml
+ .idea/uiDesigner.xml
 
 # Gradle:
-# .idea/gradle.xml
-# .idea/libraries
+ .idea/gradle.xml
+ .idea/libraries
 
 # Mongo Explorer plugin:
-# .idea/mongoSettings.xml
+ .idea/mongoSettings.xml
 
 ## File-based project format:
 *.ipr
@@ -60,5 +58,7 @@ atlassian-ide-plugin.xml
 com_crashlytics_export_strings.xml
 crashlytics.properties
 crashlytics-build.properties
+
+/test
 
 # Created by .ignore support plugin (hsz.mobi)

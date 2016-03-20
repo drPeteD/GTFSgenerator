@@ -29,31 +29,40 @@ import argparse
 from bs4 import BeautifulSoup
 import csv
 from datetime import datetime
-import glob
-import os
-from os.path import expanduser
-from shutil import copyfile
-import xml.etree.ElementTree as ET
-import zipfile
-from xml import etree
-
 import gspread          # read Google sheets
 from geopy.distance import vincenty
+import glob
+import json
+import os
+from os.path import expanduser
 from oauth2client import tools
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 import pandas as pd
-from pandas import read_excel
 import subprocess
 import sys
+from shutil import copyfile
 from termcolor import colored
 from veryprettytable import VeryPrettyTable
+import webbrowser
+import xml.etree.ElementTree as ET
+import zipfile
+from xml import etree
+
+from gtfsgenerator import GTFS
+
+from pandas import read_excel
 
 from gtfsgenerator.Configuration import Configuration
 from gtfsgenerator.GTFS import GtfsHeader
 from gtfsgenerator.GTFS import GtfsWrite
 from gtfsgenerator.GtfsCalendar import ServiceExceptions
 from gtfsgenerator.GtfsCalendar import check_calendar_length
+
+
+import httplib2
+
+from oauth2client import client
 
 
 def pretty_print_args(configs):
@@ -87,6 +96,27 @@ def get_config_parser_for_passed_in_config_file():
     config_parser.add_argument("-c", "--config_file", help="Specify a config file", metavar="FILE")
 
     return config_parser
+
+
+# def show_google_files():
+#   flow = client.flow_from_clientsecrets(
+#     'client_secrets.json',
+#     scope='https://www.googleapis.com/auth/drive.metadata.readonly',
+#     redirect_uri='urn:ietf:wg:oauth:2.0:oob')
+#
+#   auth_uri = flow.step1_get_authorize_url()
+#   webbrowser.open(auth_uri)
+#
+#   auth_code = input('Enter the auth code: ')
+#
+#   credentials = flow.step2_exchange(auth_code)
+#   http_auth = credentials.authorize(httplib2.Http())
+#
+#   drive_service = discovery.build('drive', 'v2', http_auth)
+#   files = drive_service.files().list().execute()
+#   for f in files['items']:
+#     print(f['title'])
+
 
 
 def open_google_workbook(google_workbook_name, configs):
@@ -161,7 +191,7 @@ def get_credentials(client_id, client_secret, client_scope, redirect_uri, oauth_
     flow = OAuth2WebServerFlow(client_id=client_id, client_secret=client_secret, scope=client_scope,
                                redirect_uri=redirect_uri)
 
-    storage = Storage(os.path.join(os.path.expanduser('~'), oauth_cred_file_name))
+    storage = Storage(os.path.join(os.path.expanduser(oauth_cred_file_name)))
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
@@ -276,31 +306,33 @@ def write_stop_times_file(workbook, worksheet_title, rows, columns, stops, works
         for i in range(3, len(rows)):
             departure_time = ''
             loc_type = worksheet_data[i][17]
+            loc_type = mk_int(loc_type) # enforce integer
             # If stop is a station (location_type = 1) skip it. Get location type from worksheet_data.
-            if loc_type == '1':
-                continue  # Skip the station, on to the next station.
+            if loc_type == 1: # Skip stations.
+                continue
             # Is this a time point?
             if worksheet_data[i][j]:
-                hour = worksheet_data[i][j].split(':')
-                # print('  Hour {}'.format(hour[0]))
+                hour = worksheet_data[i][j].split(':') # properly formated time should split into 3
+                if len(hour) != 2: # Write excetion
+                    exception = 'Incorrect time format from spreadsheet:{}.'.format(hour)
+                    write_exception_file(exception, workbook, worksheet_title, configs)
                 trip_start_check = True
-    # TODO Make time format more fault-tolerant. Try-Catch?
                 if hour[0] in before_mid:
                     if prev_depart_time[:2] in after_mid:
                         departure_time = '{}:{}:{}'.format(int(hour[0]) + 24, hour[1], hour[2])
-                        print(colored('Non-standard time. Previous departure time:{}. This departure time:{}'.format(prev_depart_time, departure_time),'blue'))
+                        if configs.verbose:
+                            print(colored('Non-standard time. Previous departure time:{}. This departure time:{}'.format(prev_depart_time, departure_time),'blue'))
                     else:
                         departure_time = '{}:{}:{}'.format(int(hour[0]), hour[1], hour[2])
-
-                    # print(colored('>> trip_start_check is {}, departure time is {}.'.format(trip_start_check, departure_time), color='blue'))
-
                 if hour[0] in after_mid:
                     if hour[0] == '0' or hour[0] == '00':
                         departure_time = '{}:{}:{}'.format('24', hour[1], hour[2])
                     else:
                         departure_time = '{}:{}:{}'.format( hour[0], hour[1], hour[2])
-                    print('Handle time past midnight, time is {}.'.format(departure_time))
-                # print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
+                    if configs.verbose:
+                        print('Handle time past midnight, time is {}.'.format(departure_time))
+                if configs.verbose:
+                    print(colored('^^^^ Time point, trip:{} {}'.format(trip_id, departure_time), color='green'))
                 arrival_time = departure_time
             else:
                 departure_time  = ''
@@ -318,7 +350,8 @@ def write_stop_times_file(workbook, worksheet_title, rows, columns, stops, works
                 stop_time_line = '{},{},{},{},{},{},{},{},{}'.format(trip_id, arrival_time, departure_time, stop_id, stop_sequence, stop_headsign, pickup_type, drop_off_type,
                                                                      distance_traveled)
                 stop_time_data.append('{}\n'.format(stop_time_line))
-            # print(colored(' previous dep:{}, this dep:{}'.format(prev_depart_time, departure_time),'green'))
+            if configs.verbose:
+                print(colored(' previous dep:{}, this dep:{}'.format(prev_depart_time, departure_time),'green'))
             if departure_time:
                 prev_depart_time = departure_time
         # >>>>>>>>>> End of rows, check to see that last stop has time before writing <<<<<<<<<<
@@ -385,7 +418,8 @@ def write_trips_file(trip_id, worksheet_title, workbook, worksheet, configs):
     trip_line = '{},{},{},{},{},{},{},{},{},{}'.format(route_id, service_id, trip_id, trip_headsign,
                                                        trip_short_name, direction_id, block_id, shape_id,
                                                        wheelchair_acesible, bikes_allowed)
-    print(colored(trip_line, color='green', on_color='on_white'))
+    if configs.verbose:
+        print(colored(trip_line, color='green', on_color='on_white'))
 
     if not route_id and not service_id and not trip_id:
     # If any required value is empty write exception and continue loop
@@ -402,7 +436,8 @@ def write_trips_file(trip_id, worksheet_title, workbook, worksheet, configs):
     f.write('{}\n'.format(trip_line))
     f.close()
 
-    # print('Writing trip {}... to {}'.format(trip_id, gtfs_file))
+    if configs.verbose:
+        print('Writing trip {}... to {}'.format(trip_id, gtfs_file))
 
 
 def write_stops_file(all_stops, workbook, worksheet_title, rows, worksheet_data, configs):
@@ -453,7 +488,8 @@ def write_stops_file(all_stops, workbook, worksheet_title, rows, worksheet_data,
             stop = ('{},{},{},{},{:+.6f},{:+.6f},{},{},{},{},{},{}'.format(stop_id, stop_code, stop_name, stop_desc, float(stop_lat), float(stop_lon), zone_id, stop_url, loc_type, parent, timezone, wheel_board))
             stops.append(stop)
             all_stops.append(stop)
-            # print(colored('writing_stop --> stop_line:{}'.format(stop), color='blue', on_color='on_white'))
+            if configs.verbose:
+                print(colored('writing_stop --> stop_line:{}'.format(stop), color='blue', on_color='on_white'))
         else:
             # If any required value is empty write exception and continue loop
             exception = 'Required value missing. stop line i:{} stop_id:{} stop_name:{} stop_lat:{} stop_lon{}'.format(i, stop_id, stop_name, stop_lat, stop_lon)
@@ -491,10 +527,7 @@ def write_calendar_file(workbook_title, worksheet_title, worksheet_data, configs
     '''
 
     wrkbk_wrksht_output_dir = get_worksheet_name_output_dir(workbook_title, worksheet_title, configs)
-
-    # File header
-    x = GtfsHeader()
-    x.write_header('calendar', wrkbk_wrksht_output_dir)
+    calendar_list = []
 
     # REMEMBER Python counts begin at zero!
     # Worksheet data is in the third row; retrieved as the second list of row data.
@@ -502,26 +535,30 @@ def write_calendar_file(workbook_title, worksheet_title, worksheet_data, configs
     try:
         service_id  = worksheet_data[1][28]
         monday      = worksheet_data[1][29]
+        monday      = mk_int(monday)
         tuesday     = worksheet_data[1][30]
+        tuesday     = mk_int(tuesday)
         wednesday   = worksheet_data[1][31]
+        wednesday   = mk_int(wednesday)
         thursday    = worksheet_data[1][32]
+        thursday    = mk_int(thursday)
         friday      = worksheet_data[1][33]
+        friday      = mk_int(friday)
         saturday    = worksheet_data[1][34]
+        saturday    = mk_int(saturday)
         sunday      = worksheet_data[1][35]
+        sunday      = mk_int(sunday)
     except IndexError: # Out of bounds if there is no worksheet_data to process
         exception = 'Is there a worksheet_data referenced in calendar?.'
         write_exception_file(exception, workbook_title, worksheet_data, configs)
 
-    # Placeholders for feed dates in spreadsheet are ignored.
-    end_date    = configs.feed_end_date
-    # If a start date is preesnt in the configuration file
+    end_date    = configs.feed_end_date     # Placeholders for feed dates in spreadsheet are ignored.
+
     if configs.feed_start_date:
         start_date  = configs.feed_start_date
         start, end = check_calendar_length(start_date, end_date, configs)
-    # If there is no start date, then calculate begining and end from now and delta max.
     else:
         date_now = pd.datetime.today().strftime('%Y%m%d')
-        # Returned as
         start, end = check_calendar_length(date_now, configs.feed_end_date, configs)
 
 
@@ -534,13 +571,19 @@ def write_calendar_file(workbook_title, worksheet_title, worksheet_data, configs
         exception = 'Required value missing in calendar.'
         write_exception_file(exception, workbook_title, worksheet_data, configs)
 
+    calendar_list.append(calendar_info)
+
     # Open and append to existing file
+    # File header
+    x = GtfsHeader()
+    x.write_header('calendar', wrkbk_wrksht_output_dir)
     gtfs_file = os.path.join(wrkbk_wrksht_output_dir, 'calendar.txt')
     f = open(gtfs_file, "a+")
     f.write('{}'.format(calendar_info))
     f.close()
 
-    print('Writing calendar.txt to {}'.format(gtfs_file))
+    if configs.verbose:
+        print('Writing calendar.txt to {}'.format(gtfs_file))
 
 
 def write_calendar_dates_file(service_id, workbook, worksheet_title, configs):
@@ -556,23 +599,25 @@ def write_calendar_dates_file(service_id, workbook, worksheet_title, configs):
 
     worksheet_name_output_dir = get_worksheet_name_output_dir(workbook, worksheet_title, configs)
 
-    # File header
-    x = GtfsHeader()
-    x.write_header('calendar_dates', worksheet_name_output_dir)
-    exception_type = '2'
-
     # Display expected and received holidays to aid troubleshooting
-    print('There are {} holidays in configs.'.format(len(configs.holidays.split(','))))
+    if configs.verbose:
+        print('There are {} holidays in configs.'.format(len(configs.holidays.split(','))))
 
     dates = ServiceExceptions(configs)
 
     # Display return values
     if len(dates) != len(configs.holidays.split(',')):
-        print(colored('Expected {} days, recieved {} days.'.format(len(configs.holidays.split(',')), len(dates)), color='red'))
+        if configs.verbose:
+            print(colored('Expected {} days, recieved {} days.'.format(len(configs.holidays.split(',')), len(dates)), color='red'))
     else:
-        print('Returned formatted dates:{}'.format(dates))
+        if configs.verbose:
+            print('Returned formatted dates:{}'.format(dates))
 
     # Setup a line entry for each holiday
+    # File header
+    x = GtfsHeader()
+    x.write_header('calendar_dates', worksheet_name_output_dir)
+    exception_type = '2'
     # Open and append date to existing file
     gtfs_file = os.path.join(worksheet_name_output_dir, 'calendar_dates.txt')
     f = open(gtfs_file, "a+")
@@ -580,8 +625,8 @@ def write_calendar_dates_file(service_id, workbook, worksheet_title, configs):
         calendar_dates_info = '{},{},{}\n'.format(service_id, ex_day, exception_type)
         f.write('{}'.format(calendar_dates_info))
     f.close()
-
-    print('Writing calendar_dates.txt to:{}...'.format(gtfs_file))
+    if configs.verbose:
+        print('Writing calendar_dates.txt to:{}...'.format(gtfs_file))
 
 
 def write_routes_file(workbook, worksheet_title, worksheet_data, configs):
@@ -1256,9 +1301,10 @@ def write_workbook_dictionary(workbook_dictionary, configs):
     f.write('The {} route set has {} workbooks.'.format(configs.agency_id.upper(), len(workbook_dictionary.keys())))
     f.write(' >> ignoring sheets:{}'.format(configs.ignore_sheets))
     for key, value in workbook_dictionary.items():
-        # print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
+        if configs.verbose:
+            print('\nWorkbook {} has {} worksheets:'.format(key, len(workbook_dictionary[key])))
+            print('{}'.format(value))
         f.write('\nWorkbook {} has {} worksheets.\n'.format(key, len(workbook_dictionary[key])))
-        # print('{}'.format(value))
         f.write(','.join(value))
     f.close()
 
@@ -1275,8 +1321,9 @@ def copy_file(start_time, configs):
     # copyfile source, destination
     print('Source:{}\n  Destination:{}'.format(gtfs_source, gtfs_destination))
     copyfile(gtfs_source, gtfs_destination)
-    note = 'Validation results'
-    print_et(text_color='green', start_time=start_time, title='  >> Copying file to feed pickup.'.format('copy file'),
+    if configs.verbose:
+        note = 'Validation results'
+        print_et(text_color='green', start_time=start_time, title='  >> Copying file to feed pickup.'.format('copy file'),
              note=note, configs=configs)
 
 
@@ -1317,7 +1364,8 @@ def report_errors(configs):
     val = open(val_report, 'w')
     for key, values in workbook_dict.items():
         for i in range(len(values)):
-            print('Workbook:{} worksheet:{}'.format(key, values[i]))
+            if configs.verbose:
+                print('Workbook:{} worksheet:{}'.format(key, values[i]))
             ext_path = os.path.join(os.path.expanduser(configs.gtfs_path_root),key, values[i])
             html_file = os.path.join(ext_path,'validator.html')
             if os.path.isfile(html_file):
@@ -1369,14 +1417,16 @@ def main (argv=None):
 
     if defaults is not None:
         parser.set_defaults(**defaults)
-        parser.add_argument('--verbose', action='store_true', help='Increase verbosity of output.')
-        parser.add_argument('--revision', action='version', version='%(prog)s')
-        parser.add_argument('--test', action='store_true', help='Run a function test.')
-        parser.add_argument('--merge', action='store_true', help=
-            'Merge existing feedfiles from a dictionary of Workbooks:worksheets[] specified in a configuration file.')
-        parser.add_argument('--generate', action='store_true',
+        parser.add_argument('-e', '--error', action='store_true',
+                            help='Generate GTFS worksheet feed_validator error report.')
+        parser.add_argument('-g', '--generate', action='store_true',
                             help='Generate GTFS feed from a Google spreadsheet containing '
                                  'turn-by-turn instructions, and KML files.')
+        parser.add_argument('-m', '--merge', action='store_true', help=
+            'Merge existing feedfiles from a dictionary of Workbooks:worksheets[] specified in a configuration file.')
+        parser.add_argument('-r', '--revision', action='version', version='%(prog)s')
+        parser.add_argument('-t', '--test', action='store_true', help='Run a function test.')
+        parser.add_argument('-v', '--verbose', action='store_true', help='Increase verbosity of output.')
 
         configs = parser.parse_args(remaining_argv)
         pretty_print_args(configs)
@@ -1386,18 +1436,23 @@ def main (argv=None):
             print('Testing is true...\n')
 
 # >>>>>>>>>>>>>>>> Test Section <<<<<<<<<<<<<<<<<<<<<<
-            # Call the function to test
-            # report_errors(configs)
-            wrkbk_dict = google_worksheets_by_workbook_to_dict(configs)
-            write_workbook_dictionary(wrkbk_dict, configs)
-            x = GtfsWrite()
-            x.merge_files(wrkbk_dict, configs)
+        # Call the function to test
+            dates = ServiceExceptions(configs)
+            print(dates)
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+        # elif configs.summary:
+
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        elif configs.error:
+            print('Preparing consolidated feedvalidator error report.')
+            report_errors(configs)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
         elif configs.merge:
-            print('Merging Workbook:Worksheet[] GTFS feed files.')
-
+            print('Merging GTFS feed files.')
             wrkbk_dict = google_worksheets_by_workbook_to_dict(configs)
             write_workbook_dictionary(wrkbk_dict, configs)
             x = GtfsWrite()
@@ -1427,13 +1482,15 @@ def main (argv=None):
                 route_workbook = open_google_workbook(workbook_title, configs)
                 worksheets = route_workbook.worksheets()
 
-                # print('worksheets:{}'.format(worksheets))
+                if configs.verbose:
+                    print('worksheets:{}'.format(worksheets))
                 c_note = colored(note,color='green',on_color='on_grey')
-                print(c_note)
-                note = '{}'.format('{}\nStart processing {} workbook {} with {} worksheets.'.format( \
+                if configs.verbose:
+                    print(c_note)
+                    note = '{}'.format('{}\nStart processing {} workbook {} with {} worksheets.'.format( \
                     start_time, configs.agency_id, workbook_title, len(wrkbk_dict)))
-                print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
-                print('Workbook:{}'.format(workbook_title))
+                    print_et(text_color='green', start_time=start_time, title='Workbook start.', note=note, configs=configs)
+                    print('Workbook:{}'.format(workbook_title))
 
                 # Select the sheets to process. Create empty list to hold processed sheet titles.
                 sheets  = []
@@ -1445,10 +1502,12 @@ def main (argv=None):
 
                 # Exclude worksheet list, i.e. Master and Template
                 ignore_list = configs.ignore_sheets.split(',')
-                print('ignore list:{}'.format(ignore_list))
+                if configs.verbose:
+                    print('ignore list:{}'.format(ignore_list))
 
                 create_exceptions_file(configs)
-                print('Creating exceptions file...')
+                if configs.verbose:
+                    print('Creating exceptions file...')
 
                 # Worksheet loop.
                 for worksheet in worksheets:
@@ -1458,14 +1517,16 @@ def main (argv=None):
 
                     if not worksheet_title in ignore_list:
                         if worksheet_title in sheets:
+                            if configs.verbose:
+                                note = '{}'.format('{}.'.format(worksheet_title))
+                                c_note = colored(note,color='yellow',on_color='on_grey')
+                                print(c_note)
+                                print_et(text_color='green', start_time=start_time, title='Begin processing.', note=note, configs=configs)
 
-                            note = '{}'.format('{}.'.format(worksheet_title))
-                            c_note = colored(note,color='yellow',on_color='on_grey')
-                            print(c_note)
-                            print_et(text_color='green', start_time=start_time, title='Begin processing.', note=note, configs=configs)
+                            if configs.verbose:
+                                print('Creating output directory...')
 
                             create_wrkbk_wrksht_output_dir(workbook_title, worksheet_title, configs=configs)
-                            print('Creating output directory...')
 
                             # Required rows: r2=headings(optional) r3=data r6=trip headings from configuration
                             head_data_rows = [int(s) for s in configs.head_data_rows.split(",")]
@@ -1475,13 +1536,12 @@ def main (argv=None):
 
                             # Print the current worksheet title in color
                             current_worksheet_colored = colored(worksheet.title, 'green', 'on_grey')
-                            print('{}'.format(current_worksheet_colored))
 
-                            # TODO: Process any type of worksheet;  .xls, csv, or .ods
-
-                            note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='>>> Begin worksheet data retrieval. <<<', note=note,
-                                     configs=configs)
+                            if configs.verbose:
+                                print('{}'.format(current_worksheet_colored))
+                                note = '{}'.format('')
+                                print_et(text_color='green', start_time=start_time, title='>>> Begin worksheet data retrieval. <<<', note=note,
+                                         configs=configs)
 
                             if configs.source_type == 'google':
 
@@ -1495,11 +1555,9 @@ def main (argv=None):
                                 # Get the cell values for all rows with information from the G_worksheet.
                                 ws_data = get_google_worksheet_data(row_list, worksheet, workbook_title, configs)
 
-                                ###>>  Uncomment to write retrieved worksheet data to a csv. <<###
-                                # write_worksheet_data_to_csv(current_worksheet_title, ws_data, configs)
-
-                            note = '{}'.format('')
-                            print_et(text_color='green', start_time=start_time, title='Getting worksheet row data.',
+                            if configs.verbose:
+                                note = '{}'.format('')
+                                print_et(text_color='green', start_time=start_time, title='Getting worksheet row data.',
                                      note=note, configs=configs)
 
                             # ==========> Agency.txt processing
@@ -1538,13 +1596,15 @@ def main (argv=None):
                             write_shapes_header(workbook=workbook_title, worksheet_title=worksheet_title, configs=configs)
                             # print('****** From main - write_shapes_header: current_worksheet_title:{}'.format(worksheet_title))
                             shapeID     = ws_data[1][25]
-                            print('shapeID:{}'.format(shapeID))
+                            if configs.verbose:
+                                print('shapeID:{}'.format(shapeID))
                             write_shape_from_kml(shapeID=shapeID, workbook=workbook_title, title=worksheet_title, configs=configs)
-
-                            print('Worksheet {} processing complete.'.format(worksheet_title))
+                            if configs.verbose:
+                                print('Worksheet {} processing complete.'.format(worksheet_title))
 
                             # Zip the worksheet GTFS files
-                            print('Zipping GTFS.txt files...')
+                            if configs.verbose:
+                                print('Zipping GTFS.txt files...')
                             output_path = os.path.join(os.path.expanduser(configs.gtfs_path_root), workbook_title, worksheet_title)
                             out_filename = worksheet_title
                             create_gtfs_zip(output_path, out_filename)
@@ -1553,29 +1613,27 @@ def main (argv=None):
                             filename = worksheet_title
 
                             run_validator(start_time, folder_path, filename, configs)
-
-                            note = '{}  {}-{}  {}\nValidation results\n'.format(15 * '^', workbook_title, worksheet_title, 15 * '^')
-
-                            print_et(text_color='green', start_time=start_time, title='Worksheet >> |{}-{}| <<complete.\n'.format(workbook_title, worksheet_title), note=note, configs=configs)
-
+                            if configs.verbose:
+                                note = '{}  {}-{}  {}\nValidation results\n'.format(15 * '^', workbook_title, worksheet_title, 15 * '^')
+                                print_et(text_color='green', start_time=start_time, title='Worksheet >> |{}-{}| <<complete.\n'.format(workbook_title, worksheet_title), note=note, configs=configs)
                             # Add worksheet title to list of processed worksheets for merge function
                             p_sheets.append('{}.{}'.format(workbook_title, worksheet_title))
 
                 write_proc_sheet_list(p_sheets, configs)
 
             if len(p_sheets) > 1:
-                # Merge feeds in the processed sheets list
-                print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
-                note = '{}'.format('')
-                print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
+                if configs.verbose:
+                    print('\nCombining {} gtfs feeds from {}'.format(len(p_sheets),p_sheets))
+                    note = '{}'.format('')
+                    print_et(text_color='green', start_time=start_time, title='Combining worksheets {}.'.format(p_sheets), note=note, configs=configs)
                 x = GtfsWrite()
                 x.merge_files(wrkbk_dict, configs)
             else:
-                # Copy singleton to Agency gtfs root
                 folder_path = os.path.join(os.path.expanduser(configs.gtfs_path_root), workbook_title, worksheet_title)
                 gtfs_source = os.path.join(folder_path, worksheet_title + '.zip')
                 gtfs_destination = os.path.join(os.path.expanduser(configs.gtfs_path_root), configs.agency_id + '.zip')
-                print('Source:{}\n  Destination:{}'.format(gtfs_source, gtfs_destination))
+                if configs.verbose:
+                    print('Source:{}\n  Destination:{}'.format(gtfs_source, gtfs_destination))
                 copyfile(gtfs_source, gtfs_destination)
 
             # Run validator on final feed

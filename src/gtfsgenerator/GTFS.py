@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from bs4 import BeautifulSoup
 
 __author__ = 'dr.pete.dailey'
 
@@ -218,7 +219,6 @@ class GtfsWrite():
             out.write(line)
         out.close()
 
-
     def merge_files(self, wrkbk_dict, configs):
         '''
         Combine feed files from each worksheet process.
@@ -227,7 +227,7 @@ class GtfsWrite():
             b. feed_info.txt (from config)
             d. fare_attribute (from config)
             e. fare_rules (from config)
-        2. Feed files that require only concatenation of lines:
+        2. Feed files that require concatenation of lines:
             a. trips.txt
             b. stop_times.txt
             c. shapes.txt
@@ -257,34 +257,40 @@ class GtfsWrite():
             # ref os glob tool: http://www.diveintopython3.net/comprehensions.html
 
             for key, value in wrkbk_dict.items(): #iterate across workbooks
-                print('Combine workbook {} with {} worksheets:'.format(key, len(wrkbk_dict[key])))
+                if configs.verbose:
+                    print('Combine workbook {} with {} worksheets:'.format(key, len(wrkbk_dict[key])))
                 # iterate across worksheets in workbook for each gtfs file
                 for i in range(len(value)):
-                    print('Retreive Workbook:{} Worksheet:{} GTFS file:{}.txt'.format(key,value[i], gtfs_file))
+                    if configs.verbose:
+                        print('Retreive Workbook:{} Worksheet:{} GTFS file:{}.txt'.format(key,value[i], gtfs_file))
 
                     # Construct the input file path to trip group locations - e.g., gtfs/workbook/worksheet/gtfs.txt.
                     input_dir = os.path.join(os.path.expanduser(configs.gtfs_path_root), key, value[i] )
                     infile = os.path.join(input_dir, '{}.txt'.format(gtfs_file))
 
                     # Combine lines in fin and fout
-                    with open(out_tmp, 'a') as fout, fileinput.input(infile) as fin:
-                        for line in fin:
-                            fout.write(line)
-                        fout.close()
+                    if os.path.isfile(infile):
+                        with open(out_tmp, 'a') as fout, fileinput.input(infile) as fin:
+                            for line in fin:
+                                fout.write(line)
+                            fout.close()
                 fout = open(out_tmp, 'a')
-                # Remove duplicate lines, remove headers.
-                x = GtfsHeader()
-                x.remove_head_line(gtfs_file, out_path)
-                print('Removing duplicate lines from {}.'.format(gtfs_tmp))
-                GtfsWrite.remove_dup_lines(self, os.path.join(out_path, gtfs_tmp))
-                x.write_header(gtfs_file, out_path)
-                fout.close()
-                with open(os.path.join(out_path, gtfs_master), 'a') as fout, fileinput.input(os.path.join(out_path, gtfs_tmp), 'r') as fin:
-                    for line in fin:
-                        fout.write(line)
-                    fout.close()
-                os.remove(os.path.join(out_path, '{}.tmp'.format(gtfs_file)))
 
+            # Remove duplicate lines, remove headers.
+            x = GtfsHeader()
+            x.remove_head_line(gtfs_file, out_path)
+            if configs.verbose:
+                print('Removing duplicate lines from {}.'.format(gtfs_tmp))
+            GtfsWrite.remove_dup_lines(self, os.path.join(out_path, gtfs_tmp))
+            fout.close()
+
+            x.write_header(gtfs_file, out_path)
+            with open(os.path.join(out_path, gtfs_master), 'a') as fout, fileinput.input(os.path.join(out_path, gtfs_tmp), 'r') as fin:
+                for line in fin:
+                    fout.write(line)
+                fout.close()
+
+            os.remove(os.path.join(out_path, '{}.tmp'.format(gtfs_file)))
 
     def write_agency_file(workbook, worksheet_title, configs):
         '''
@@ -300,7 +306,8 @@ class GtfsWrite():
         x = GtfsHeader()
         x.write_header('agency', wrkbk_wrksht_output_dir)
 
-        print('Writing agency.txt to {}'.format(wrkbk_wrksht_output_dir))
+        if configs.verbose:
+            print('Writing agency.txt to {}'.format(wrkbk_wrksht_output_dir))
         agency_info = '{},{},{},{},{},{}'.format(str(configs.agency_id), str(configs.agency_name), str(configs.agency_url),
                                                  str(configs.agency_timezone), str(configs.agency_lang), str(configs.agency_phone))
 

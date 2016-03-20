@@ -5,7 +5,7 @@ __author__ = 'Dr. Pete Dailey'
 # Import Pandas
 import pandas as pd
 from pandas.tseries.holiday import Holiday, AbstractHolidayCalendar
-from pandas.tseries.holiday import TU, FR, nearest_workday
+from pandas.tseries.holiday import MO, TU, WE, TH, FR, SA, SU, nearest_workday
 from pandas.tseries.offsets import *
 from pandas.tseries.holiday import USMemorialDay, USLaborDay, USColumbusDay, USThanksgivingDay, USMartinLutherKingJr, USPresidentsDay, GoodFriday, EasterMonday
 from termcolor import colored
@@ -31,18 +31,18 @@ def ServiceExceptions(configs):
     delta_max       = configs.delta_max
 
     if not start_date:
-        print(colored('No start date, assuming today.', 'red'))
+        if configs.verbose:
+            print(colored('No start date, assuming today.', 'red'))
         start_date = pd.datetime.today().strftime('%Y%m%d')
     if not end_date:
         print(colored('No end date, adding delta of {} to start.', 'red').format(delta_max))
+        # Is this broken? "TypeError: an integer is required (got type str)"
         end_date = pd.datetime(start_date) + pd.DateOffset(days=delta_max)
     if not holiday_list:
-        print(colored('No holidays specified.', 'red'))
-
+        if configs.verbose:
+            print(colored('No holidays specified.', 'red'))
     cal_dates = get_dates(start_date, end_date, configs)
-
     return cal_dates
-
 
 def unify_holiday_names(configs):
     """
@@ -54,8 +54,6 @@ def unify_holiday_names(configs):
     :param configs: From config file, contains the list of holidays
     :return: List containing unified holiday names
     """
-    # TODO write unify code
-
 
 def get_dates(start, end, configs):
     """
@@ -67,14 +65,14 @@ def get_dates(start, end, configs):
     :return: cal_dates, a list of strings containing the holidays in GTFS date format.
     """
 
-    holiday_list = configs.holidays
     delta_max   = configs.delta_max
-    # start = pd.Timestamp(start)
-    # end   = pd.Timestamp(end)
-    print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start, end, delta_max))
+
+    if configs.verbose:
+        print(' From GtfsCalendar.getDates start:{} end:{} max delta days:{}'.format(start, end, delta_max))
 
     my_calendar = determine_calendar_dates(start, end, configs)
-    # print('  from GtfsCalendar.getDates my_calendar\n{}'.format(vars(my_calendar)))
+    if configs.verbose:
+        print('  from GtfsCalendar.getDates my_calendar\n{}'.format(vars(my_calendar)))
     my_dates = select_agency_calendar_dates(my_calendar, configs)
 
     cal_dates = []
@@ -84,7 +82,8 @@ def get_dates(start, end, configs):
         # Check for duplicate dates
         if date not in cal_dates:
             cal_dates.append(date.strftime('%Y%m%d'))
-    # print(cal_dates)
+    if configs.verbose:
+        print(cal_dates)
 
     return cal_dates
 
@@ -129,9 +128,9 @@ def check_calendar_length(start, end, configs):
     #   to the start date. *** GTFS feedfiles can not exceed 1 year.
     if delta > pd.Timedelta(days=offset):
         new_end = start + DateOffset(days=int(configs.delta_max))
-        print(colored(('Start to end length exeeded, calculated {} days, max is {} days.'.format\
+        if configs.verbose:
+            print(colored(('Start to end length exeeded, calculated {} days, max is {} days.'.format\
                            (delta, configs.delta_max)),color='red'))
-        # TODO write exception
         start   = start.strftime('%Y%m%d')
         new_end = new_end.strftime('%Y%m%d')
     # Start and Stop are good, return unchanged.
@@ -139,7 +138,8 @@ def check_calendar_length(start, end, configs):
         start   = start.strftime('%Y%m%d')
         new_end = end.strftime('%Y%m%d')
 
-    print(colored(' >> New start date is {}, end date is {}.'.format(start, new_end), color='green'))
+    if configs.verbose:
+        print(colored(' >> New start date is {}, end date is {}.'.format(start, new_end), color='green'))
 
     # Return start and end as GTFS formated date strings
     return start, new_end
@@ -164,8 +164,7 @@ def select_agency_calendar_dates(calendar, configs):
 
 def election_observance(dt):
     if dt.year % 2 == 1:
-        dt = pd.to_datetime('1/1/2000')
-        return dt
+        return pd.NaT
     else:
         return dt + pd.DateOffset(weekday=TU(1))
 
@@ -205,4 +204,5 @@ class UsaWvCalendar(AbstractHolidayCalendar):
         Holiday('US Election Day', month=11, day=1, observance=election_observance),
         Holiday('WV Primary Election Day', month=5, day=1, observance=election_observance),
         Holiday('WV Day', month=6, day=20),
+        #Holiday('Canada Thanksgiving Day', month=10, offset=DateOffset(weekday=MO(2))),
     ]
